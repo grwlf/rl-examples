@@ -10,7 +10,7 @@ function Bandit.new(n)
 
    o.size = n
    for i=1,n do
-      o[i] = { mean = torch.uniform(10,50), var = 1 }
+      o[i] = { mean = torch.normal(0,1), var = 1 }
    end
    return o
 end
@@ -58,13 +58,33 @@ function EpsGreedyLearner:experiment(n)
    return hist
 end
 
+function EpsGreedyLearner:zero()
+   for i=1,self.bandit.size do
+      self.values[i] = 0
+      self.num_turns[i] = 0
+   end
+end
+
+function average_experiments(learner, exp_len, exp_num)
+   local res = torch.Tensor(exp_num, exp_len)
+   for i=1,exp_num do
+      learner:zero()
+      res[i] = learner:experiment(exp_len)
+   end
+--   print(res)
+   return res:mean(1):t()
+end
 
 b = Bandit.new(10)
+
 egl = EpsGreedyLearner.new(b, 0.01)
-res = egl:experiment(2000)
+
+res = average_experiments(egl, 1000, 2000)
+print("ares", res)
 
 print(b)
-print(egl.num_turns)
+--print(egl.num_turns)
+--print(egl.values)
 
 gp = require 'gnuplot'
 
