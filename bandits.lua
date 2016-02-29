@@ -77,10 +77,11 @@ end
 
 b = Bandit.new(10)
 
-egl = EpsGreedyLearner.new(b, 0.01)
+learner1 = EpsGreedyLearner.new(b, 0.01)
+learner2 = EpsGreedyLearner.new(b, 0.1)
 
-res = average_experiments(egl, 1000, 2000)
-print("ares", res)
+res1 = average_experiments(learner1, 1000, 2000)
+res2 = average_experiments(learner2, 1000, 2000)
 
 print(b)
 --print(egl.num_turns)
@@ -88,4 +89,4 @@ print(b)
 
 gp = require 'gnuplot'
 
-gp.plot(res)
+gp.plot({"L1", res1, "-"}, {"L2", res2, "-"})
