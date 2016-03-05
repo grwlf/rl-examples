@@ -1,12 +1,22 @@
 N = 10
 
+function class()
+   local cls = {}
+   cls.__index = cls
+
+   cls.super = function()
+      local o = {}
+      setmetatable(o, cls)
+      return o
+   end
+   return cls
+end
+
 -- Bandit
-Bandit = {}
-Bandit.__index = Bandit
+Bandit = class()
 
 function Bandit.new(n)
-   local o = {}
-   setmetatable(o, Bandit)
+   local o = Bandit.super()
 
    o.size = n
    for i=1,n do
@@ -21,12 +31,10 @@ end
 
 -- Greedy learner
 
-EpsGreedyLearner = {}
-EpsGreedyLearner.__index = EpsGreedyLearner
+EpsGreedyLearner = class()
 
 function EpsGreedyLearner.new(b, eps)
-   local o = {}
-   setmetatable(o, EpsGreedyLearner)
+   local o = EpsGreedyLearner.super()
 
    o.bandit = b
    o.eps = eps
