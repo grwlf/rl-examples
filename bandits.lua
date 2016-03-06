@@ -1,28 +1,15 @@
 N = 10
 
-function class()
-   local cls = {}
-   cls.__index = cls
-
-   cls.super = function()
-      local o = {}
-      setmetatable(o, cls)
-      return o
-   end
-   return cls
-end
+class = require '30log'
 
 -- Bandit
-Bandit = class()
+Bandit = class("Bandit")
 
-function Bandit.new(n)
-   local o = Bandit.super()
-
-   o.size = n
+function Bandit:init(n)
+   self.size = n
    for i=1,n do
-      o[i] = { mean = torch.normal(0,1), var = 1 }
+      self[i] = { mean = torch.normal(0,1), var = 1 }
    end
-   return o
 end
 
 function Bandit:sample(k)
@@ -31,17 +18,13 @@ end
 
 -- Greedy learner
 
-EpsGreedyLearner = class()
+EpsGreedyLearner = class("EpsGreedyLearner")
 
-function EpsGreedyLearner.new(b, eps)
-   local o = EpsGreedyLearner.super()
-
-   o.bandit = b
-   o.eps = eps
-   o.values = torch.zeros(b.size)
-   o.num_turns = torch.zeros(b.size)
-
-   return o
+function EpsGreedyLearner:init(b, eps)
+   self.bandit = b
+   self.eps = eps
+   self.values = torch.zeros(b.size)
+   self.num_turns = torch.zeros(b.size)
 end
 
 function EpsGreedyLearner:experiment(n)
@@ -74,17 +57,15 @@ function EpsGreedyLearner:zero()
 end
 
 SoftMax = class()
-function SoftMax.new(n, t)
-   o = SoftMax.super()
-   o.N = n
-   o.t = t
-   o:zero()
-   return o
+function SoftMax:init(n, t)
+   self.N = n
+   self.t = t
+   self:zero()
 end
 
 function SoftMax:zero()
-   self.exp_values = torch.ones(self.N)
-   self.sum = self.N
+   self.exp_values = torch.ones(self.N) * 5
+   self.sum = self.N * 5
    return self
 end
 
@@ -108,14 +89,11 @@ function SoftMax:sample()
 end
 
 SMLearner = class()
-function SMLearner.new(b,t)
-   local o = SMLearner.super()
-   o.sm = SoftMax.new(b.size,t)
-   o.bandit = b
-   o.values = torch.zeros(b.size)
-   o.num_turns = torch.zeros(b.size)
-
-   return o
+function SMLearner:init(b,t)
+   self.sm = SoftMax(b.size,t)
+   self.bandit = b
+   self.values = torch.zeros(b.size)
+   self.num_turns = torch.zeros(b.size)
 end
 
 function SMLearner:zero()
@@ -151,12 +129,12 @@ function average_experiments(learner, exp_len, exp_num)
    return res:mean(1):t()
 end
 
-b = Bandit.new(10)
-avg = 2000
+b = Bandit(10)
+avg = 200
 
-learner1 = EpsGreedyLearner.new(b, 0.01)
-learner2 = EpsGreedyLearner.new(b, 0.1)
-learner3 = SMLearner.new(b,0.1)
+learner1 = EpsGreedyLearner(b, 0.01)
+learner2 = EpsGreedyLearner(b, 0.1)
+learner3 = SMLearner(b,0.1)
 
 res1 = average_experiments(learner1, 1000, avg)
 res2 = average_experiments(learner2, 1000, avg)
