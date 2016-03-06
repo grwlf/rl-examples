@@ -73,6 +73,74 @@ function EpsGreedyLearner:zero()
    end
 end
 
+SoftMax = class()
+function SoftMax.new(n, t)
+   o = SoftMax.super()
+   o.N = n
+   o.t = t
+   o:zero()
+   return o
+end
+
+function SoftMax:zero()
+   self.exp_values = torch.ones(self.N)
+   self.sum = self.N
+   return self
+end
+
+function SoftMax:set(n, val)
+   self.sum = self.sum - self.exp_values[n]
+   self.exp_values[n] = math.exp(val / self.t)
+   self.sum = self.sum + self.exp_values[n]
+   return self
+end
+
+function SoftMax:sample()
+   local r = torch.uniform(0, self.sum)
+   local k = 1
+   while k <= self.N do
+      r = r - self.exp_values[k]
+      if r <= 0 then
+         return k
+      end
+      k = k + 1
+   end
+end
+
+SMLearner = class()
+function SMLearner.new(b,t)
+   local o = SMLearner.super()
+   o.sm = SoftMax.new(b.size,t)
+   o.bandit = b
+   o.values = torch.zeros(b.size)
+   o.num_turns = torch.zeros(b.size)
+
+   return o
+end
+
+function SMLearner:zero()
+   self.sm:zero()
+end
+
+function SMLearner:experiment(n)
+   local hist = torch.Tensor(n)
+
+   local turn
+   for i=1,n do
+      turn = self.sm:sample()
+
+      local res = self.bandit:sample(turn)
+      hist[i] = res
+
+      self.values[turn] = (self.values[turn] * self.num_turns[turn] + res) / (self.num_turns[turn] + 1)
+      self.num_turns[turn] = self.num_turns[turn] + 1
+      self.sm:set(turn, self.values[turn])
+   end
+
+   return hist
+end
+
+
 function average_experiments(learner, exp_len, exp_num)
    local res = torch.Tensor(exp_num, exp_len)
    for i=1,exp_num do
@@ -84,12 +152,15 @@ function average_experiments(learner, exp_len, exp_num)
 end
 
 b = Bandit.new(10)
+avg = 2000
 
 learner1 = EpsGreedyLearner.new(b, 0.01)
 learner2 = EpsGreedyLearner.new(b, 0.1)
+learner3 = SMLearner.new(b,0.1)
 
-res1 = average_experiments(learner1, 1000, 2000)
-res2 = average_experiments(learner2, 1000, 2000)
+res1 = average_experiments(learner1, 1000, avg)
+res2 = average_experiments(learner2, 1000, avg)
+res3 = average_experiments(learner3, 1000, avg)
 
 print(b)
 --print(egl.num_turns)
@@ -97,4 +168,6 @@ print(b)
 
 gp = require 'gnuplot'
 
-gp.plot({"L1", res1, "-"}, {"L2", res2, "-"})
+gp.plot({"greedy 99%", res1, "-"}, {"greedy 90%", res2, "-"}, {"SoftMax", res3, "-"})
+
+print(res1:sum(), res2:sum(), res3:sum())
