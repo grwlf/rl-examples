@@ -16,15 +16,33 @@ function Bandit:sample(k)
    return torch.normal(self[k].mean, self[k].var)
 end
 
+ValueLearner = class("ValueLearner")
+function ValueLearner:init(n)
+   self.N = n
+   self.values = torch.zeros(n)
+   self.weights = torch.zeros(n)
+end
+
+function ValueLearner:update(i, v)
+   self.weights[i] = self.weights[i] + 1
+   self.values[i] = self.values[i] + (v - self.values[i]) / self.weights[i]
+end
+
+function ValueLearner:zero()
+   for i=1,N do
+      self.values[i] = 0
+      self.weights[i] = 0
+   end
+end
+
 -- Greedy learner
 
-EpsGreedyLearner = class("EpsGreedyLearner")
+EpsGreedyLearner = ValueLearner:extend("EpsGreedyLearner")
 
 function EpsGreedyLearner:init(b, eps)
+   EpsGreedyLearner.super.init(self, b.size)
    self.bandit = b
    self.eps = eps
-   self.values = torch.zeros(b.size)
-   self.num_turns = torch.zeros(b.size)
 end
 
 function EpsGreedyLearner:experiment(n)
@@ -42,18 +60,10 @@ function EpsGreedyLearner:experiment(n)
       local res = self.bandit:sample(turn)
       hist[i] = res
 
-      self.values[turn] = (self.values[turn] * self.num_turns[turn] + res) / (self.num_turns[turn] + 1)
-      self.num_turns[turn] = self.num_turns[turn] + 1
+      self:update(turn, res)
    end
 
    return hist
-end
-
-function EpsGreedyLearner:zero()
-   for i=1,self.bandit.size do
-      self.values[i] = 0
-      self.num_turns[i] = 0
-   end
 end
 
 SoftMax = class()
@@ -88,16 +98,16 @@ function SoftMax:sample()
    end
 end
 
-SMLearner = class()
+SMLearner = ValueLearner:extend("SMLearner")
 function SMLearner:init(b,t)
    self.sm = SoftMax(b.size,t)
    self.bandit = b
-   self.values = torch.zeros(b.size)
-   self.num_turns = torch.zeros(b.size)
+   SMLearner.super.init(self, b.size)
 end
 
 function SMLearner:zero()
    self.sm:zero()
+   SMLearner.super.zero(self)
 end
 
 function SMLearner:experiment(n)
@@ -110,8 +120,7 @@ function SMLearner:experiment(n)
       local res = self.bandit:sample(turn)
       hist[i] = res
 
-      self.values[turn] = (self.values[turn] * self.num_turns[turn] + res) / (self.num_turns[turn] + 1)
-      self.num_turns[turn] = self.num_turns[turn] + 1
+      self:update(turn, res)
       self.sm:set(turn, self.values[turn])
    end
 
