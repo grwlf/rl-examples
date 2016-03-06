@@ -39,31 +39,25 @@ end
 
 EpsGreedyLearner = ValueLearner:extend("EpsGreedyLearner")
 
-function EpsGreedyLearner:init(b, eps)
-   EpsGreedyLearner.super.init(self, b.size)
-   self.bandit = b
+function EpsGreedyLearner:init(n, eps)
+   EpsGreedyLearner.super.init(self, n)
    self.eps = eps
 end
 
-function EpsGreedyLearner:experiment(n)
-   local hist = torch.Tensor(n)
-
+function EpsGreedyLearner:decide()
    local turn
-   for i=1,n do
-      if torch.uniform() < self.eps then
-         turn = torch.random(self.bandit.size)
-      else
-         _, turn = torch.max(self.values,1)
-         turn = turn[1]
-      end
-
-      local res = self.bandit:sample(turn)
-      hist[i] = res
-
-      self:update(turn, res)
+   if torch.uniform() < self.eps then
+      turn = torch.random(N)
+   else
+      _, turn = torch.max(self.values,1)
+      turn = turn[1]
    end
 
-   return hist
+   return turn
+end
+
+function EpsGreedyLearner:feedback(i, v)
+   self:update(i, v)
 end
 
 SoftMax = class()
@@ -99,10 +93,9 @@ function SoftMax:sample()
 end
 
 SMLearner = ValueLearner:extend("SMLearner")
-function SMLearner:init(b,t)
-   self.sm = SoftMax(b.size,t)
-   self.bandit = b
-   SMLearner.super.init(self, b.size)
+function SMLearner:init(n,t)
+   SMLearner.super.init(self, n)
+   self.sm = SoftMax(n,t)
 end
 
 function SMLearner:zero()
@@ -110,44 +103,49 @@ function SMLearner:zero()
    SMLearner.super.zero(self)
 end
 
-function SMLearner:experiment(n)
+function SMLearner:decide()
+   local turn = self.sm:sample()
+   return turn
+end
+
+function SMLearner:feedback(i, v)
+   self:update(i,v)
+   self.sm:set(i, self.values[i])
+end
+
+function experiment(bandit, learner, n)
    local hist = torch.Tensor(n)
 
-   local turn
    for i=1,n do
-      turn = self.sm:sample()
-
-      local res = self.bandit:sample(turn)
+      local turn = learner:decide()
+      local res = bandit:sample(turn)
+      learner:feedback(turn, res)
       hist[i] = res
-
-      self:update(turn, res)
-      self.sm:set(turn, self.values[turn])
    end
 
    return hist
 end
 
-
-function average_experiments(learner, exp_len, exp_num)
+function average_experiments(bandit, learner, exp_len, exp_num)
    local res = torch.Tensor(exp_num, exp_len)
    for i=1,exp_num do
       learner:zero()
-      res[i] = learner:experiment(exp_len)
+      res[i] = experiment(bandit, learner, exp_len)
    end
---   print(res)
    return res:mean(1):t()
 end
 
-b = Bandit(10)
+N = 10
+b = Bandit(N)
 avg = 200
 
-learner1 = EpsGreedyLearner(b, 0.01)
-learner2 = EpsGreedyLearner(b, 0.1)
-learner3 = SMLearner(b,0.1)
+learner1 = EpsGreedyLearner(10, 0.01)
+learner2 = EpsGreedyLearner(10, 0.1)
+learner3 = SMLearner(10, 0.1)
 
-res1 = average_experiments(learner1, 1000, avg)
-res2 = average_experiments(learner2, 1000, avg)
-res3 = average_experiments(learner3, 1000, avg)
+res1 = average_experiments(b, learner1, 1000, avg)
+res2 = average_experiments(b, learner2, 1000, avg)
+res3 = average_experiments(b, learner3, 1000, avg)
 
 print(b)
 --print(egl.num_turns)
