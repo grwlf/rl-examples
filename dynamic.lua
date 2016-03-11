@@ -1,8 +1,40 @@
 N = 30
 NA = 4
-eps = 0.001
-gamma = 0.95
+eps = 0.1
+gamma = 0.90
 
+-- RENDERING
+local gp = require 'gnuplot'
+Renderer = { P = nil, V = nil, P_num = 0, V_num = 0 }
+
+function Renderer.init(draw)
+   if not draw then
+      gp.raw("set terminal gif animate delay 5 size 1200,700")
+      gp.raw('set output "animate.gif"')
+   end
+end
+
+function Renderer.updateV(v)
+   Renderer.V = v
+   Renderer.V_num = Renderer.V_num + 1
+end
+
+function Renderer.updateP(p)
+   Renderer.P = p
+   Renderer.P_num = Renderer.P_num + 1
+   Renderer.V_num = 0
+end
+
+function Renderer.draw()
+   gp.raw("set multiplot layout 1,2")
+   gp.raw(string.format("set title 'value map %d'", Renderer.V_num))
+   gnuplot.imagesc(Renderer.V,'color')
+   gp.raw(string.format("set title 'policy map %d'", Renderer.P_num))
+   gnuplot.imagesc(Renderer.P,'color')
+   gp.raw("unset multiplot")
+end
+
+-- REINFORCEMENT
 function evaluate_policy(V, trans, policy, reward)
    local Delta
    local steps = 0
@@ -20,7 +52,10 @@ function evaluate_policy(V, trans, policy, reward)
             V[i][j] = v
          end
       end
+      Renderer.updateV(V)
+      Renderer.draw()
       steps = steps + 1
+
    until Delta < eps
    io.write(string.format("found in %d steps\n", steps))
    return V
@@ -115,17 +150,15 @@ function random_P()
 end
 
 function recursive_policy_improvement(draw)
-   gp = require 'gnuplot'
-   if not draw then
-      gp.raw("set terminal gif animate delay 20 size 1200,700")
-      gp.raw('set output "animate.gif"')
-   end
 
    local V = torch.zeros(N,N)
    local old_P = random_P()
    local P = old_P
    local stale
    local i = 1
+
+   Renderer.updateV(V)
+   Renderer.updateP(P)
    repeat
       local policy = function(i,j,a)
          if P[i][j] == a then return 1
@@ -138,10 +171,9 @@ function recursive_policy_improvement(draw)
       stale = torch.all(torch.eq(old_P,P))
       old_P = P
 
-      gp.raw("set multiplot layout 1,2")
-      gnuplot.imagesc(V,'color')
-      gnuplot.imagesc(P,'color')
-      gp.raw("unset multiplot")
+      Renderer.updateP(P)
+      Renderer.draw()
+
       i = i + 1
 
    until stale
@@ -149,6 +181,7 @@ function recursive_policy_improvement(draw)
    return P, vs
 end
 
+Renderer.init()
 p,v = recursive_policy_improvement()
 
 print(p)
