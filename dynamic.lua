@@ -6,6 +6,7 @@ gamma = 0.9
 function evaluate_states(trans, policy, reward)
    local V = torch.zeros(N,N)
    local Delta
+   local steps = 0
    repeat
       Delta = 0
       for x=1,4 do
@@ -22,8 +23,9 @@ function evaluate_states(trans, policy, reward)
 
          end
       end
-      print(V)
+      steps = steps + 1
    until Delta < eps
+   io.write(string.format("found in %d steps\n", steps))
    return V
 end
 
