@@ -3,8 +3,7 @@ NA = 4
 eps = 0.001
 gamma = 0.9
 
-function evaluate_states(trans, policy, reward)
-   local V = torch.zeros(N,N)
+function evaluate_policy(V, trans, policy, reward)
    local Delta
    local steps = 0
    repeat
@@ -16,11 +15,9 @@ function evaluate_states(trans, policy, reward)
                local i2,j2 = trans(i,j, a)
                local R = reward(i,j, i2,j2, a) -- skipped i,j,a
                v = v + policy(i,j, a) * (R + gamma * V[i2][j2])
---               print(Delta,V[i][j],v,i,j, i2, j2, a)
             end
             Delta = math.max(Delta, math.abs(v - V[i][j]))
             V[i][j] = v
-
          end
       end
       steps = steps + 1
@@ -82,21 +79,22 @@ function reward(i,j, i2,j2, a)
 end
 
 function recursive_policy_improvement()
-   local policy = function (i,j,a) return 0.25 end
-   local old_P = torch.zeros(NA,NA)
-   local vs
+   local V = torch.zeros(N,N)
+   local old_P = torch.ones(NA,NA)
+   local P = old_P
    local stale
    repeat
-      vs = evaluate_states(trans, policy, reward)
-      print(vs)
-      local P = improve_policy(vs)
-      stale = torch.all(torch.eq(old_P,P))
-      old_P = P
-      policy = function(i,j,a)
+      local policy = function(i,j,a)
          if P[i][j] == a then return 1
          else return 0
          end
       end
+
+      V = evaluate_policy(V, trans, policy, reward)
+      print(V)
+      P = improve_policy(V)
+      stale = torch.all(torch.eq(old_P,P))
+      old_P = P
       print(P)
    until stale
 
