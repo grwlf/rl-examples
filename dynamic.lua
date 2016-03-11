@@ -9,17 +9,17 @@ function evaluate_states(trans, policy, reward)
    local steps = 0
    repeat
       Delta = 0
-      for x=1,4 do
-         for y=1,4 do
+      for i=1,4 do
+         for j=1,4 do
             local v = 0
             for a=1,NA do
-               local x2,y2 = trans(x,y, a)
-               local R = reward(x,y, x2,y2, a) -- skipped x,y,a
-               v = v + policy(x,y, a) * (R + gamma * V[x2][y2])
---               print(Delta,V[x][y],v,x,y, x2, y2, a)
+               local i2,j2 = trans(i,j, a)
+               local R = reward(i,j, i2,j2, a) -- skipped i,j,a
+               v = v + policy(i,j, a) * (R + gamma * V[i2][j2])
+--               print(Delta,V[i][j],v,i,j, i2, j2, a)
             end
-            Delta = math.max(Delta, math.abs(v - V[x][y]))
-            V[x][y] = v
+            Delta = math.max(Delta, math.abs(v - V[i][j]))
+            V[i][j] = v
 
          end
       end
@@ -32,57 +32,57 @@ end
 function improve_policy(V)
    local P = torch.zeros(NA,NA)
 
-   for x=1,4 do
-      for y=1,4 do
+   for i=1,4 do
+      for j=1,4 do
          local max
          local max_i = 0
          for a=1,NA do
-            local x2,y2 = trans(x,y, a)
-            local R = reward(x,y, x2,y2, a)
-            local v = R + gamma * V[x2][y2]
+            local i2,j2 = trans(i,j, a)
+            local R = reward(i,j, i2,j2, a)
+            local v = R + gamma * V[i2][j2]
 
             if max_i == 0 or max < v then
                max_i = a
                max = v
             end
          end
-         P[x][y] = max_i
+         P[i][j] = max_i
       end
    end
    return P
 end
 
-function is_terminal(x,y)
-   return x == 1 and y == 1 or x == N and y == N
+function is_terminal(i,j)
+   return i == 1 and j == 1 or i == N and j == N
 end
 
-function is_offboard(x,y)
-   return x < 1 or x > N or y < 1 or y > N
+function is_offboard(i,j)
+   return i < 1 or i > N or j < 1 or j > N
 end
 
-function trans(x,y,a)
-   local x2,y2
-   if is_terminal(x,y) then x2,y2 = x,y
-   elseif a == 1 then x2,y2 = x,y-1
-   elseif a == 2 then x2,y2 = x-1,y
-   elseif a == 3 then x2,y2 = x,y+1
-   elseif a == 4 then x2,y2 = x+1,y
+function trans(i,j,a)
+   local i2,j2
+   if is_terminal(i,j) then i2,j2 = i,j
+   elseif a == 1 then i2,j2 = i-1,j
+   elseif a == 2 then i2,j2 = i,j-1
+   elseif a == 3 then i2,j2 = i+1,j
+   elseif a == 4 then i2,j2 = i,j+1
    else error "unknown action"
    end
-   if is_offboard(x2,y2) then return x,y
-   else return x2,y2
+   if is_offboard(i2,j2) then return i,j
+   else return i2,j2
 end
 end
 
-function reward(x,y, x2,y2, a)
-   if is_terminal(x2,y2) then return 0
-   elseif x == x2 and y == y2 then return -3
+function reward(i,j, i2,j2, a)
+   if is_terminal(i2,j2) then return 0
+   elseif i == i2 and j == j2 then return -3
    else return -1
    end
 end
 
 function recursive_policy_improvement()
-   local policy = function (x,y,a) return 0.25 end
+   local policy = function (i,j,a) return 0.25 end
    local old_P = torch.zeros(NA,NA)
    local vs
    local stale
@@ -92,8 +92,8 @@ function recursive_policy_improvement()
       local P = improve_policy(vs)
       stale = torch.all(torch.eq(old_P,P))
       old_P = P
-      policy = function(x,y,a)
-         if P[x][y] == a then return 1
+      policy = function(i,j,a)
+         if P[i][j] == a then return 1
          else return 0
          end
       end
