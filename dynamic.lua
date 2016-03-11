@@ -1,4 +1,4 @@
-N = 4
+N = 6
 NA = 4
 eps = 0.001
 gamma = 0.9
@@ -8,8 +8,8 @@ function evaluate_policy(V, trans, policy, reward)
    local steps = 0
    repeat
       Delta = 0
-      for i=1,4 do
-         for j=1,4 do
+      for i=1,N do
+         for j=1,N do
             local v = 0
             for a=1,NA do
                local i2,j2 = trans(i,j, a)
@@ -27,10 +27,10 @@ function evaluate_policy(V, trans, policy, reward)
 end
 
 function improve_policy(V)
-   local P = torch.zeros(NA,NA)
+   local P = torch.zeros(N,N)
 
-   for i=1,4 do
-      for j=1,4 do
+   for i=1,N do
+      for j=1,N do
          local max
          local max_i = 0
          for a=1,NA do
@@ -80,7 +80,7 @@ end
 
 function recursive_policy_improvement()
    local V = torch.zeros(N,N)
-   local old_P = torch.ones(NA,NA)
+   local old_P = torch.ones(N,N)
    local P = old_P
    local stale
    repeat
