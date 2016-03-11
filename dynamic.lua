@@ -78,11 +78,20 @@ function reward(i,j, i2,j2, a)
    end
 end
 
-function recursive_policy_improvement()
+function random_P()
+   local P = torch.Tensor(N,N)
+   P:apply(function(v) return torch.random(1,NA) end)
+   return P
+end
+
+function recursive_policy_improvement(draw)
+   gp = require 'gnuplot'
+
    local V = torch.zeros(N,N)
-   local old_P = torch.ones(N,N)
+   local old_P = random_P()
    local P = old_P
    local stale
+   local i = 1
    repeat
       local policy = function(i,j,a)
          if P[i][j] == a then return 1
@@ -96,8 +105,16 @@ function recursive_policy_improvement()
       stale = torch.all(torch.eq(old_P,P))
       old_P = P
       print(P)
-   until stale
 
+      gnuplot.figure(i)
+      gp.raw("set multiplot layout 1,2")
+      gnuplot.imagesc(V,'color')
+      gnuplot.imagesc(P,'color')
+      gp.raw("unset multiplot")
+      i = i + 1
+
+   until stale
+   io.write(string.format("improved in %d steps", i))
    return vs, P
 end
 
