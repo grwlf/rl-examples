@@ -1,7 +1,7 @@
-N = 6
+N = 30
 NA = 4
 eps = 0.001
-gamma = 0.9
+gamma = 0.95
 
 function evaluate_policy(V, trans, policy, reward)
    local Delta
@@ -71,11 +71,41 @@ function trans(i,j,a)
 end
 end
 
+function round(v)
+   if math.abs(v - math.floor(v)) < 0.5 then return math.floor(v) else return math.ceil(v) end
+end
+
+function on_centered_square(i,j, r)
+   local ci = round(N / 2)
+   local cj = round(N / 2)
+
+   return math.abs(i - ci) == r and math.abs(j - cj) <= r or
+          math.abs(i - ci) <= r and math.abs(j - cj) == r
+end
+
 function reward(i,j, i2,j2, a)
-   if is_terminal(i2,j2) then return 0
-   elseif i == i2 and j == j2 then return -3
-   else return -1
+   if is_terminal(i2,j2) then return 0 end
+
+   local r1 = 5
+   local r2 = 8
+
+   if on_centered_square(i2, j2, 5) and not (i2 == round(N / 2) and i2 > j2) then
+      return -100
    end
+
+   if on_centered_square(i2, j2, 8) and not (i2 == round(N / 2) and i2 < j2) then
+      return -100
+   end
+
+   if on_centered_square(i2, j2, 12) and not (j2 == round(N / 2) and i2 < j2) then
+      return -100
+   end
+
+
+   if i == i2 and j == j2 then return -3 end
+
+   return -1
+
 end
 
 function random_P()
@@ -86,6 +116,10 @@ end
 
 function recursive_policy_improvement(draw)
    gp = require 'gnuplot'
+   if not draw then
+      gp.raw("set terminal gif animate delay 20 size 1200,700")
+      gp.raw('set output "animate.gif"')
+   end
 
    local V = torch.zeros(N,N)
    local old_P = random_P()
@@ -100,13 +134,10 @@ function recursive_policy_improvement(draw)
       end
 
       V = evaluate_policy(V, trans, policy, reward)
-      print(V)
       P = improve_policy(V)
       stale = torch.all(torch.eq(old_P,P))
       old_P = P
-      print(P)
 
-      gnuplot.figure(i)
       gp.raw("set multiplot layout 1,2")
       gnuplot.imagesc(V,'color')
       gnuplot.imagesc(P,'color')
@@ -115,7 +146,10 @@ function recursive_policy_improvement(draw)
 
    until stale
    io.write(string.format("improved in %d steps", i))
-   return vs, P
+   return P, vs
 end
 
-recursive_policy_improvement()
+p,v = recursive_policy_improvement()
+
+print(p)
+print(v)
