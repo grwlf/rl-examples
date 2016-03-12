@@ -26,9 +26,9 @@ end
 
 function tabulate_poisson_diff(lam1, lam2)
    local tab = {}
-   for t=-N,N do
+   for t=-2*N,2*N do
       tab[t] = 0
-      for a=0,N do
+      for a=0,2*N do
          local b = a - t
          if b >= 0 then
             tab[t] = tab[t] + poisson(lam1, a) * poisson(lam2, b)
@@ -38,23 +38,45 @@ function tabulate_poisson_diff(lam1, lam2)
    return tab
 end
 
-function plot_table(tab)
+function indexes(tab)
    local min = 10e9
    local max = -10e9
    for i,v in pairs(tab) do
       if min > i then min = i end
       if max < i then max = i end
    end
+   return min, max
+end
 
-   ten = torch.Tensor(max - min + 1)
-   i=1
-   for k=min,max do
-      ten[i] = tab[k]
-      i = i + 1
-   end
+function plot_table(tab)
+   local min, max = indexes(tab)
 
    local gp = require 'gnuplot'
-   gp.plot(ten)
+
+   if type(tab[min]) == "number" then
+      local ten = torch.Tensor(max - min + 1)
+      local i=1
+      for k=min,max do
+         ten[i] = tab[k]
+         i = i + 1
+      end
+      gp.plot(ten)
+   elseif type(tab[min]) == "table" then
+      local min2, max2 = indexes(tab[min])
+
+      local ten = torch.Tensor(max - min + 1, max2-min2+1)
+      local i=1
+      for k=min,max do
+         local j = 1
+         for l = min2,max2 do
+            ten[i][j] = tab[k][l]
+            j = j + 1
+         end
+         i = i + 1
+      end
+      gp.imagesc(ten)
+   else error("unknown elt")
+   end
 end
 
 PoissonDiff1 = tabulate_poisson_diff(RentLambda1, RetLambda1)
@@ -92,6 +114,53 @@ function evaluate_policy(V, policy, trans, reward)
    return V
 end
 
+function improve_policy(V, P, trans, reward)
+   local changed = false
+
+   for i=0,N do
+      for j=0,N do
+         local best_a
+         local best_v = -10e9
+         for a = -MCAR, MCAR do
+            local v = 0
+            for i2=0,N do
+               for j2=0,N do
+                  local pr = trans(i,j,  i2,j2, a) -- transition is probabilistic
+                  local rw = reward(i,j, i2,j2, a)
+                  v = v + pr * (rw + Gamma * V[i2][j2])
+               end
+            end
+            if v > best_v then
+               best_a = a
+               best_v = v
+            end
+         end
+         if not (P[i][j] == best_a) then
+            changed = true
+            P[i][j] = best_a
+         end
+      end
+   end
+
+   return P, changed
+end
+
+function recursive_policy_improvement(trans, reward)
+   V = zeroTable()
+   P = zeroTable()
+
+   local pol = function(i,j)
+      return P[i][j]
+   end
+
+   local changed
+   repeat
+      evaluate_policy(V, pol, trans, reward)
+      P, changed = improve_policy(V, P, trans, reward)
+      plot_table(P)
+   until not changed
+end
+
 function policy0(i,j) -- do nothing
    return 0
 end
@@ -110,7 +179,7 @@ function reward(i,j, i2, j2, a)
    return -RentPrice * (math.min(di, 0) + math.min(dj, 0)) - MovePrice * math.abs(a)
 end
 
-function zeroV()
+function zeroTable()
    local res = {}
    for i=0,N do
       res[i] = {}
