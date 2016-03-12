@@ -174,14 +174,23 @@ function transfer(i,j,i2,j2, a)
 end
 
 function reward(i,j, i2, j2, a)
-   local di = i2 - i + a
+   local di = i2 - i + a -- return - rent
    local dj = j2 - j - a
+
+   local tax = 0
+
+   if i2 > 10 then
+      tax = tax + 8
+   end
+   if j2 > 10 then
+      tax = tax + 8
+   end
 
    if a > 0 then
       a = a - 1
    end
 
-   return -RentPrice * (math.min(di, 0) + math.min(dj, 0)) - MovePrice * math.abs(a)
+   return -RentPrice * (math.min(di, 0) + math.min(dj, 0)) - MovePrice * math.abs(a) - tax
 end
 
 function zeroTable()
