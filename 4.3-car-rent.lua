@@ -159,6 +159,7 @@ function recursive_policy_improvement(trans, reward)
       P, changed = improve_policy(V, P, trans, reward)
       plot_table(P)
    until not changed
+   return V, P
 end
 
 function policy0(i,j) -- do nothing
@@ -175,6 +176,10 @@ end
 function reward(i,j, i2, j2, a)
    local di = i2 - i + a
    local dj = j2 - j - a
+
+   if a > 0 then
+      a = a - 1
+   end
 
    return -RentPrice * (math.min(di, 0) + math.min(dj, 0)) - MovePrice * math.abs(a)
 end
