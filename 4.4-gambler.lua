@@ -66,7 +66,7 @@ function recursive_policy_improvement()
    repeat
       evaluate_policy(V, P)
       P, changed = improve_policy(V, P)
-      Plotter.plot_table(V)
+      Plotter.plot_table(V,P)
    until not changed
    return V, P
 end
