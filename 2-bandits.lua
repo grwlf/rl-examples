@@ -90,6 +90,7 @@ function SoftMax:sample()
       end
       k = k + 1
    end
+   return self.N
 end
 
 SMLearner = ValueLearner:extend("SMLearner")
