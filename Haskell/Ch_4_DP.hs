@@ -76,6 +76,8 @@ data EvalState s = EvalState {
 
 initEvalState StateVal{..} = EvalState 0.0 v_map v_map 0
 
+-- | Iterative policy evaluation algorithm
+-- Figure 4.1, pg.86.
 policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
   => p -> EvalOpts -> StateVal s -> m (StateVal s)
 policy_eval p EvalOpts{..} v = do
@@ -125,6 +127,8 @@ policy_eval p EvalOpts{..} v = do
 | |  _| '__| |/ _` \ \ /\ / / _ \| '__| |/ _` |
 | |_| | |  | | (_| |\ V  V / (_) | |  | | (_| |
  \____|_|  |_|\__,_| \_/\_/ \___/|_|  |_|\__,_|
+
+ Example 4.1, pg.86
 -}
 
 data Action = L | R | U | D
@@ -172,6 +176,6 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
       printf "%-2.1f . " (v_map ! (x,y))
     printf "\n"
 
-test_eval :: IO ()
-test_eval = showStateVal gw =<< policy_eval gw defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001} (policy_init gw)
+example_4_1 :: IO ()
+example_4_1 = showStateVal gw =<< policy_eval gw defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001} (policy_init gw)
 
