@@ -17,8 +17,8 @@ import Control.Break
 import Data.Ratio
 import Data.List hiding (break)
 import qualified Data.List as List
-import Data.Map (Map, (!))
-import qualified Data.Map as Map
+import Data.Map.Strict (Map, (!))
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Prelude hiding(break)
@@ -85,5 +85,8 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
         put_v s v_s'
         d <- get_delta
         put_delta (d`max`(abs (v_s - v_s')))
+
+
+
 
 
