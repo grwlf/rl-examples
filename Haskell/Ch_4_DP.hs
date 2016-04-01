@@ -52,6 +52,10 @@ data EvalOpts = EvalOpts {
   , eo_etha :: Double
   }
 
+policy_init :: forall p s a m . (RLProblem p s a)
+  => p -> StateVal s
+policy_init p =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states p)
+
 policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
   => p -> Policy s a -> EvalOpts -> StateVal s -> m (StateVal s)
 policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
@@ -123,5 +127,12 @@ instance RLProblem GW (Int,Int) Action where
   rl_actions _ _ = Set.fromList [ (1%(toInteger $ length actions),a) | a <- actions]
   rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
 
+
+showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
+showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
+  forM_ [0..sy-1] $ \y -> do
+    forM_ [0..sx-1] $ \x -> do
+      printf "%-2.2f " (v_map ! (x,y))
+    printf "\n"
 
 
