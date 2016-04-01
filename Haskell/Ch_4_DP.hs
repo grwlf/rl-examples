@@ -49,6 +49,7 @@ data Policy s a = Policy {
 
 data EvalOpts = EvalOpts {
     eo_gamma :: Double
+  , eo_epsilon :: Double
   }
 
 policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
@@ -61,10 +62,10 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
   let put_v s v_s = modify (\(d,v) -> (d, Map.insert s v_s v))
 
   StateVal . snd <$> do
-    flip execStateT (0,v_map) $ loop $ do
+    flip execStateT (1.0,v_map) $ loop $ do
 
       d <- get_delta
-      when (d < eo_gamma) $ do
+      when (d < eo_epsilon) $ do
         break ()
 
       forM_ (rl_states p) $ \s -> do
