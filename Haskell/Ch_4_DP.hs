@@ -35,7 +35,7 @@ data StateVal s = StateVal {
 
 class (Ord s) => RLProblem p s a | p -> s , p -> a where
   rl_states :: p -> Set s
-  rl_actions :: p -> s -> Set a
+  rl_actions :: p -> s -> Set (Probability, a) -- policy
   rl_transitions :: p -> s -> a -> Set (Probability, (Reward, s))
 
 
@@ -49,7 +49,7 @@ data Policy s a = Policy {
 
 data EvalOpts = EvalOpts {
     eo_gamma :: Double
-  , eo_epsilon :: Double
+  , eo_etha :: Double
   }
 
 policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
@@ -65,15 +65,16 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
     flip execStateT (1.0,v_map) $ loop $ do
 
       d <- get_delta
-      when (d < eo_epsilon) $ do
+      when (d < eo_etha) $ do
         break ()
 
       forM_ (rl_states p) $ \s -> do
         v's <- do
-          sum (rl_actions p s) $ \a -> do
-            sum (rl_transitions p s a) $ \(p, (r, s')) -> do
-              v_s' <- get_v s'
-              pure $ (fromRational p) * (r + eo_gamma * (v_s'))
+          sum (rl_actions p s) $ \(pi, a) -> do
+            ((fromRational pi)*) <$> (do
+              sum (rl_transitions p s a) $ \(p, (r, s')) -> do
+                v_s' <- get_v s'
+                pure $ (fromRational p) * (r + eo_gamma * (v_s')))
 
         v_s <- get_v s
         put_v s v's
@@ -93,6 +94,9 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
 data Action = L | R | U | D
   deriving(Show, Eq, Ord, Enum, Bounded)
 
+actions :: [Action]
+actions = [minBound .. maxBound]
+
 data GW = GW {
     gw_size :: (Int,Int)
   }
@@ -101,10 +105,10 @@ data GW = GW {
 move :: GW -> Point -> Action -> (Reward, Point)
 move (GW (sx,sy)) (x,y) a =
   let
-    inbound (_, (x',y')) = x' < 0 || x' >= sx || y' < 0 || y' >= sy
-    check def perm = if inbound perm then perm else def
+    inbound (x',y') = x' < 0 || x' >= sx || y' < 0 || y' >= sy
+    check def (r,perm) = if inbound perm then (r,perm) else def
   in
-  if inbound (0,(x,y)) then
+  if inbound (x,y) then
     check (-100, (x,y)) (0,
       case a of
          L -> (x-1,y)
@@ -115,15 +119,9 @@ move (GW (sx,sy)) (x,y) a =
     error "Start state is out of bounds"
 
 instance RLProblem GW (Int,Int) Action where
-  rl_states (GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
-  rl_actions _ _ = Set.fromList [minBound .. maxBound]
-  rl_transitions p@GW{..} s@(x,y) a =
-    let
-      as = Set.toList $ rl_actions p s
-    in
-    undefined
-    -- FIXME: figure out whats wrong with probabilities
-    -- Set.fromList [ (1%(toInteger $ length as),(0.0 , a)) | a <- as ]
+  rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
+  rl_actions _ _ = Set.fromList [ (1%(toInteger $ length actions),a) | a <- actions]
+  rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
 
 
 
