@@ -29,12 +29,6 @@ type Point = (Int,Int)
 type Probability = Rational
 type Reward = Double
 
--- data Board = Board {
---     b_states :: Set Point
---   , b_map :: Map Point Value
---   , b_loc :: Point
---   }
-
 data StateVal s = StateVal {
     v_map :: Map s Double
   }
@@ -78,7 +72,6 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
         v_s <- get_v s
         v_s' <- do
           sum (rl_actions p s) $ \a -> do
-
             sum (rl_transitions p s a) $ \(p, (r, s')) -> do
               pure $ (fromRational p) * (r + eo_gamma * (v ! s'))
 
@@ -87,6 +80,49 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
         put_delta (d`max`(abs (v_s - v_s')))
 
 
+
+{-
+  ____      _     _                    _     _
+ / ___|_ __(_) __| |_      _____  _ __| | __| |
+| |  _| '__| |/ _` \ \ /\ / / _ \| '__| |/ _` |
+| |_| | |  | | (_| |\ V  V / (_) | |  | | (_| |
+ \____|_|  |_|\__,_| \_/\_/ \___/|_|  |_|\__,_|
+-}
+
+data Action = L | R | U | D
+  deriving(Show, Eq, Ord, Enum, Bounded)
+
+data GW = GW {
+    gw_size :: (Int,Int)
+  }
+  deriving(Show)
+
+move :: GW -> Point -> Action -> (Reward, Point)
+move (GW (sx,sy)) (x,y) a =
+  let
+    inbound (_, (x',y')) = x' < 0 || x' >= sx || y' < 0 || y' >= sy
+    check def perm = if inbound perm then perm else def
+  in
+  if inbound (0,(x,y)) then
+    check (-100, (x,y)) (0,
+      case a of
+         L -> (x-1,y)
+         R -> (x+1,y)
+         U -> (x,y-1)
+         D -> (x,y+1))
+  else
+    error "Start state is out of bounds"
+
+instance RLProblem GW (Int,Int) Action where
+  rl_states (GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
+  rl_actions _ _ = Set.fromList [minBound .. maxBound]
+  rl_transitions p@GW{..} s@(x,y) a =
+    let
+      as = Set.toList $ rl_actions p s
+    in
+    undefined
+    -- FIXME: figure out whats wrong with probabilities
+    -- Set.fromList [ (1%(toInteger $ length as),(0.0 , a)) | a <- as ]
 
 
 
