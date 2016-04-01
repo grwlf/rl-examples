@@ -54,7 +54,6 @@ data EvalOpts = EvalOpts {
 policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
   => p -> Policy s a -> EvalOpts -> StateVal s -> m (StateVal s)
 policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
-  let v = v_map
   let sum l f = List.sum <$> forM (Set.toList l) f
   let get_delta = gets fst
   let put_delta d = modify (\(_,v) -> (d, v))
@@ -62,22 +61,23 @@ policy_eval p Policy{..} EvalOpts{..} StateVal{..} = do
   let put_v s v_s = modify (\(d,v) -> (d, Map.insert s v_s v))
 
   StateVal . snd <$> do
-    flip execStateT (0,v) $ loop $ do
+    flip execStateT (0,v_map) $ loop $ do
 
       d <- get_delta
       when (d < eo_gamma) $ do
         break ()
 
       forM_ (rl_states p) $ \s -> do
-        v_s <- get_v s
-        v_s' <- do
+        v's <- do
           sum (rl_actions p s) $ \a -> do
             sum (rl_transitions p s a) $ \(p, (r, s')) -> do
-              pure $ (fromRational p) * (r + eo_gamma * (v ! s'))
+              v_s' <- get_v s'
+              pure $ (fromRational p) * (r + eo_gamma * (v_s'))
 
-        put_v s v_s'
+        v_s <- get_v s
+        put_v s v's
         d <- get_delta
-        put_delta (d`max`(abs (v_s - v_s')))
+        put_delta (d`max`(abs (v's - v_s)))
 
 
 
