@@ -45,14 +45,11 @@ class (Ord s) => RLProblem p s a | p -> s , p -> a where
   rl_actions :: p -> s -> Set (Probability, a) -- policy
   rl_transitions :: p -> s -> a -> Set (Probability, (Reward, s))
 
-
 rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
 rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions p s a))
 
-
-data Policy s a = Policy {
-    pol_map :: Map s a
-  } deriving(Show)
+class (RLProblem pr s a) => RLPolicy pp pr s a where
+  rlp_action :: pp -> pr -> s -> Set (Probability, a)
 
 policy_init :: forall p s a m . (RLProblem p s a)
   => p -> StateVal s
@@ -83,9 +80,9 @@ initEvalState StateVal{..} = EvalState 0.0 v_map v_map 0
 
 -- | Iterative policy evaluation algorithm
 -- Figure 4.1, pg.86.
-policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
-  => p -> EvalOpts -> StateVal s -> m (StateVal s)
-policy_eval p EvalOpts{..} v = do
+policy_eval :: forall pol p s a m . (RLPolicy pol p s a, MonadIO m)
+  => p -> pol -> EvalOpts -> StateVal s -> m (StateVal s)
+policy_eval p pol EvalOpts{..} v = do
   let sum l f = List.sum <$> forM (Set.toList l) f
 
   StateVal . view es_v <$> do
@@ -100,7 +97,7 @@ policy_eval p EvalOpts{..} v = do
       forM_ (rl_states p) $ \s -> do
         v_s <- uses es_v (!s)
         v's <- do
-          sum (rl_actions p s) $ \(fromRational -> pi, a) -> do
+          sum (rlp_action pol p s) $ \(fromRational -> pi, a) -> do
             (pi*) <$> do
               sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
                 v_s' <- uses es_v (!s')
@@ -162,10 +159,17 @@ move (GW (sx,sy)) (x,y) a =
 instance RLProblem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
   rl_actions (GW (sx,sy)) s =
+    undefined
+  rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
+
+data GWRandomPolicy = GWRandomPolicy
+  deriving(Show)
+
+instance RLPolicy GWRandomPolicy GW (Int,Int) Action where
+  rlp_action GWRandomPolicy (GW (sx,sy)) s =
     case s == (0,0) || s == (sx-1,sy-1) of
       True -> Set.empty
       False -> Set.fromList [ (1%(toInteger $ length actions),a) | a <- actions]
-  rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
 
 
 showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
@@ -176,5 +180,5 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
     printf "\n"
 
 example_4_1 :: IO ()
-example_4_1 = showStateVal gw =<< policy_eval gw defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001} (policy_init gw)
+example_4_1 = showStateVal gw =<< policy_eval gw GWRandomPolicy defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001} (policy_init gw)
 
