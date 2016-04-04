@@ -97,8 +97,8 @@ policy_eval p pol EvalOpts{..} v = do
       forM_ (rl_states p) $ \s -> do
         v_s <- uses es_v (!s)
         v's <- do
-          sum (rlp_action pol p s) $ \(fromRational -> pi, a) -> do
-            (pi*) <$> do
+          sum (rlp_action pol p s) $ \(fromRational -> pa, a) -> do
+            (pa*) <$> do
               sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
                 v_s' <- uses es_v (!s')
                 pure $ p * (r + eo_gamma * (v_s'))
