@@ -16,7 +16,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.State.Strict
 import Control.Break
-import Control.Lens
+import Control.Lens (makeLenses, (%=), view, use, uses)
 import Data.Ratio
 import Data.List hiding (break)
 import qualified Data.List as List
@@ -87,39 +87,36 @@ policy_eval :: forall p s a m . (RLProblem p s a, MonadIO m)
   => p -> EvalOpts -> StateVal s -> m (StateVal s)
 policy_eval p EvalOpts{..} v = do
   let sum l f = List.sum <$> forM (Set.toList l) f
-  let get_delta = gets _es_delta
-  let put_delta d = modify $ \e@EvalState{..} -> e{_es_delta = d}
-  let get_v s = (! s) <$> gets _es_v
-  let put_v s v_s = modify $ \e@EvalState{..} -> e{_es_v' = Map.insert s v_s _es_v'}
 
-  StateVal . _es_v <$> do
+  StateVal . view es_v <$> do
     flip execStateT (initEvalState v) $ loop $ do
 
       i <- use es_iter
       when (i > eo_max_iter-1) $ do
         break ()
 
-      es_delta .= 0.0
+      es_delta %= const 0.0
 
       forM_ (rl_states p) $ \s -> do
+        v_s <- uses es_v (!s)
         v's <- do
           sum (rl_actions p s) $ \(fromRational -> pi, a) -> do
             (pi*) <$> do
               sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
-                v_s' <- get_v s'
+                v_s' <- uses es_v (!s')
                 pure $ p * (r + eo_gamma * (v_s'))
 
-        v_s <- get_v s
-        put_v s v's
-        d <- get_delta
-        put_delta (d`max`(abs (v's - v_s)))
+        es_v' %= (Map.insert s v's)
+        es_delta %= (`max`(abs (v's - v_s)))
 
       d <- use es_delta
       when (d < eo_etha) $ do
         break ()
 
-      modify $ \s -> s{ _es_iter = i + 1 }
-      modify $ \s -> s{ _es_v = _es_v' s }
+      v' <- use es_v'
+      es_v %= const v'
+
+      es_iter %= (+1)
 
 
 
