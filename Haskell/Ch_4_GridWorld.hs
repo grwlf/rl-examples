@@ -66,8 +66,6 @@ move (GW (sx,sy)) (x,y) a =
 
 instance RLProblem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
-  rl_actions (GW (sx,sy)) s =
-    undefined
   rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
 
 data GWRandomPolicy = GWRandomPolicy
@@ -88,5 +86,6 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
     printf "\n"
 
 example_4_1 :: IO ()
-example_4_1 = showStateVal gw =<< policy_eval gw GWRandomPolicy defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001} (policy_init gw)
+example_4_1 = showStateVal gw =<< policy_eval gw GWRandomPolicy opts (zero_sate_values gw) where
+  opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
 

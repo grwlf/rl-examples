@@ -42,7 +42,6 @@ data StateVal s = StateVal {
 
 class (Ord s) => RLProblem p s a | p -> s , p -> a where
   rl_states :: p -> Set s
-  rl_actions :: p -> s -> Set (Probability, a) -- policy
   rl_transitions :: p -> s -> a -> Set (Probability, (Reward, s))
 
 rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
@@ -51,9 +50,9 @@ rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions 
 class (RLProblem pr s a) => RLPolicy pp pr s a where
   rlp_action :: pp -> pr -> s -> Set (Probability, a)
 
-policy_init :: forall p s a m . (RLProblem p s a)
+zero_sate_values :: forall p s a m . (RLProblem p s a)
   => p -> StateVal s
-policy_init p =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states p)
+zero_sate_values p =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states p)
 
 data EvalOpts = EvalOpts {
     eo_gamma :: Double
@@ -114,5 +113,38 @@ policy_eval p pol EvalOpts{..} v = do
       es_v %= const v'
 
       es_iter %= (+1)
+
+
+data GenericPolicy s a = GenericPolicy {
+  gp_actions :: Map s (Set (Probability,a))
+  } deriving(Eq,Ord, Show)
+
+instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
+  rlp_action GenericPolicy{..} _ s = gp_actions ! s
+
+-- data PIState = PIState {
+--   pi_actions :: Map s (Set (Probability,a))
+--   }
+
+-- FIXME:check
+policy_improve :: forall pol p s a m . (RLPolicy pol p s a, MonadIO m, Ord a)
+  => p -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
+policy_improve p pol EvalOpts{..} StateVal{..} = do
+  let sum l f = List.sum <$> forM (Set.toList l) f
+
+  GenericPolicy <$> do
+    flip execStateT Map.empty $ do
+
+      forM_ (rl_states p) $ \s -> do
+        actval <- do
+          forM (Set.toList $ rlp_action pol p s) $ \ (fromRational -> pa, a) -> do
+            pi_s <- do
+              sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
+                v_s' <- pure (v_map ! s')
+                pure $ p * (r + eo_gamma * (v_s'))
+            return (pi_s,a)
+
+        a' <- pure $ snd $ maximumBy (\a b -> (fst a) `compare` (fst b)) actval
+        modify $ Map.insert s (Set.fromList [(1%1, a')])
 
 
