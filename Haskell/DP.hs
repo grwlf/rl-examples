@@ -25,6 +25,7 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Prelude hiding(break)
+import Data.Foldable
 import Text.Printf
 import Debug.Trace
 
@@ -136,15 +137,23 @@ policy_improve p pol EvalOpts{..} StateVal{..} = do
     flip execStateT Map.empty $ do
 
       forM_ (rl_states p) $ \s -> do
-        actval <- do
-          forM (Set.toList $ rlp_action pol p s) $ \ (fromRational -> pa, a) -> do
-            pi_s <- do
-              sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
-                v_s' <- pure (v_map ! s')
-                pure $ p * (r + eo_gamma * (v_s'))
-            return (pi_s,a)
+        (maxv, maxa) <- do
+          foldlM (\(val,maxa) (fromRational -> pa, a) -> do
+                    pi_s <- do
+                      sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
+                        v_s' <- pure (v_map ! s')
+                        pure $ p * (r + eo_gamma * (v_s'))
+                    return $
+                      if Set.null maxa then
+                        (pi_s, Set.singleton a)
+                      else
+                        case pi_s `compare` val of
+                          GT -> (pi_s, Set.singleton a)
+                          LT -> (val,maxa)
+                          EQ -> (pi_s, Set.insert a maxa)
+                 ) (0.0 ,Set.empty) (rlp_action pol p s)
 
-        a' <- pure $ snd $ maximumBy (\a b -> (fst a) `compare` (fst b)) actval
-        modify $ Map.insert s (Set.fromList [(1%1, a')])
+        let nmax = toInteger (Set.size maxa)
+        modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
 
 
