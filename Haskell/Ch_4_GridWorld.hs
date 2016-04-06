@@ -41,6 +41,17 @@ data Action = L | R | U | D
 actions :: [Action]
 actions = [minBound .. maxBound]
 
+showAction :: Action -> String
+showAction a =
+  case a of
+    L->"<"
+    R->">"
+    U->"^"
+    D->"v"
+
+showActions :: Set Action -> String
+showActions = concat . map showAction . List.sort . Set.toList
+
 data GW = GW {
     gw_size :: (Int,Int)
   }
@@ -82,7 +93,15 @@ showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
 showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
-      printf "%-2.1f . " (v_map ! (x,y))
+      printf "%-2.1f " (v_map ! (x,y))
+    printf "\n"
+
+showPolicy :: (MonadIO m, RLPolicy p GW Point Action) => GW -> p -> m ()
+showPolicy pr@(GW (sx,sy)) p = liftIO $ do
+  forM_ [0..sy-1] $ \y -> do
+    forM_ [0..sx-1] $ \x -> do
+      let acts = Set.map snd $ Set.filter (\(pa,a) -> pa > 0) $ rlp_action p pr (x,y)
+      printf "% 4s " (showActions acts)
     printf "\n"
 
 example_4_1 :: IO ()
