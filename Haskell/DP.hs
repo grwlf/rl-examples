@@ -41,9 +41,9 @@ data StateVal s = StateVal {
     v_map :: Map s Double
   } deriving(Show)
 
-class (Ord s) => RLProblem p s a | p -> s , p -> a where
-  rl_states :: p -> Set s
-  rl_transitions :: p -> s -> a -> Set (Probability, (Reward, s))
+class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
+  rl_states :: pr -> Set s
+  rl_transitions :: pr -> s -> a -> Set (Probability, (Reward, s))
 
 rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
 rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions p s a))
@@ -51,9 +51,9 @@ rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions 
 class (RLProblem pr s a) => RLPolicy pp pr s a where
   rlp_action :: pp -> pr -> s -> Set (Probability, a)
 
-zero_sate_values :: forall p s a m . (RLProblem p s a)
-  => p -> StateVal s
-zero_sate_values p =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states p)
+zero_sate_values :: forall pr s a m . (RLProblem pr s a)
+  => pr -> StateVal s
+zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states pr)
 
 data EvalOpts = EvalOpts {
     eo_gamma :: Double
@@ -128,19 +128,19 @@ instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
 --   }
 
 -- FIXME:check
-policy_improve :: forall pol p s a m . (RLPolicy pol p s a, MonadIO m, Ord a)
-  => p -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
-policy_improve p pol EvalOpts{..} StateVal{..} = do
+policy_improve :: forall pol pr s a m . (RLPolicy pol pr s a, MonadIO m, Ord a)
+  => pr -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
+policy_improve pr pol EvalOpts{..} StateVal{..} = do
   let sum l f = List.sum <$> forM (Set.toList l) f
 
   GenericPolicy <$> do
     flip execStateT Map.empty $ do
 
-      forM_ (rl_states p) $ \s -> do
+      forM_ (rl_states pr) $ \s -> do
         (maxv, maxa) <- do
           foldlM (\(val,maxa) (fromRational -> pa, a) -> do
                     pi_s <- do
-                      sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
+                      sum (rl_transitions pr s a) $ \(fromRational -> p, (r, s')) -> do
                         v_s' <- pure (v_map ! s')
                         pure $ p * (r + eo_gamma * (v_s'))
                     return $
@@ -151,9 +151,34 @@ policy_improve p pol EvalOpts{..} StateVal{..} = do
                           GT -> (pi_s, Set.singleton a)
                           LT -> (val,maxa)
                           EQ -> (pi_s, Set.insert a maxa)
-                 ) (0.0 ,Set.empty) (rlp_action pol p s)
+                 ) (0.0 ,Set.empty) (rlp_action pol pr s)
 
         let nmax = toInteger (Set.size maxa)
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
 
+
+data PolicyIterS s a = PolicyIterS {
+    pis_pi :: GenericPolicy s a
+  , pis_v :: StateVal s
+  }
+
+
+policy_iteraton_step :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
+  => pr -> p -> EvalOpts -> m (GenericPolicy s a)
+policy_iteraton_step pr p eo = do
+  v <- policy_eval pr p eo (zero_sate_values pr)
+  pi <- policy_improve pr p eo v
+  return pi
+
+
+policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
+  => pr -> p -> EvalOpts -> m (GenericPolicy s a)
+policy_iteraton pr p eo = do
+  gp <- policy_iteraton_step pr p eo
+  flip execStateT gp $ loop $ do
+    p <- get
+    p' <- policy_iteraton_step pr p eo
+    put p'
+    when (p' == p) $ do
+      break ()
 
