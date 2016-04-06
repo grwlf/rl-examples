@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -48,8 +49,11 @@ class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
 rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
 rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions p s a))
 
-class (RLProblem pr s a) => RLPolicy pp pr s a where
-  rlp_action :: pp -> pr -> s -> Set (Probability, a)
+class (RLProblem pr s a) => RLPolicy p pr s a where
+  rlp_action :: p -> pr -> s -> Set (Probability, a)
+
+policy_eq :: (Eq a, RLPolicy p1 pr s a, RLPolicy p2 pr s a) => pr -> p1 -> p2 -> Bool
+policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
 
 zero_sate_values :: forall pr s a m . (RLProblem pr s a)
   => pr -> StateVal s
@@ -126,10 +130,6 @@ data GenericPolicy s a = GenericPolicy {
 instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
   rlp_action GenericPolicy{..} _ s = gp_actions ! s
 
--- data PIState = PIState {
---   pi_actions :: Map s (Set (Probability,a))
---   }
-
 -- FIXME:check
 policy_improve :: forall pol pr s a m . (RLPolicy pol pr s a, MonadIO m, Ord a)
   => pr -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
@@ -160,12 +160,6 @@ policy_improve pr pol EvalOpts{..} StateVal{..} = do
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
 
 
-data PolicyIterS s a = PolicyIterS {
-    pis_pi :: GenericPolicy s a
-  , pis_v :: StateVal s
-  }
-
-
 policy_iteraton_step :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
   => pr -> p -> EvalOpts -> m (GenericPolicy s a)
 policy_iteraton_step pr p eo = do
@@ -173,15 +167,25 @@ policy_iteraton_step pr p eo = do
   pi <- policy_improve pr p eo v
   return pi
 
+data PolicyContainer p s a = APolicy p | GPolicy (GenericPolicy s a)
+
+withAnyPolicy :: forall p pr s a m x . (RLPolicy p pr s a, Monad m)
+  => pr -> PolicyContainer p s a -> (forall p1 . RLPolicy p1 pr s a => p1 -> m x) -> m x
+withAnyPolicy pr ap handler = do
+  case ap of
+    APolicy p -> handler p
+    GPolicy gp -> handler gp
 
 policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
   => pr -> p -> EvalOpts -> m (GenericPolicy s a)
 policy_iteraton pr p eo = do
-  gp <- policy_iteraton_step pr p eo
-  flip execStateT gp $ loop $ do
-    p <- get
-    p' <- policy_iteraton_step pr p eo
-    put p'
-    when (p' == p) $ do
-      break ()
+  (GPolicy p) <- flip execStateT (APolicy p) $ loop $ do
+    ap <- get
+    withAnyPolicy pr ap $ \p -> do
+        p' <- policy_iteraton_step pr p eo
+        put (GPolicy p')
+        when (policy_eq pr p p') $ do
+          break ()
+  return p
+
 
