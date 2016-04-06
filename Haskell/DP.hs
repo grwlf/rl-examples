@@ -57,8 +57,11 @@ zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList
 
 data EvalOpts = EvalOpts {
     eo_gamma :: Double
+  -- ^ Forgetness
   , eo_etha :: Double
+  -- ^ policy evaluation precision
   , eo_max_iter :: Int
+  -- ^ policy evaluation iteration limit, [1..maxBound]
   } deriving(Show)
 
 defaultOpts = EvalOpts {
