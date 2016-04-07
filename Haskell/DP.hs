@@ -130,6 +130,8 @@ data GenericPolicy s a = GenericPolicy {
 instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
   rlp_action GenericPolicy{..} _ s = gp_actions ! s
 
+-- defaultGenericPolicy :: GenericPolicy s a
+
 -- FIXME:check
 policy_improve :: forall pol pr s a m . (RLPolicy pol pr s a, MonadIO m, Ord a)
   => pr -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
@@ -161,11 +163,11 @@ policy_improve pr pol EvalOpts{..} StateVal{..} = do
 
 
 policy_iteraton_step :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
-  => pr -> p -> EvalOpts -> m (GenericPolicy s a)
-policy_iteraton_step pr p eo = do
-  v <- policy_eval pr p eo (zero_sate_values pr)
-  pi <- policy_improve pr p eo v
-  return pi
+  => pr -> p -> StateVal s -> EvalOpts -> m (StateVal s, GenericPolicy s a)
+policy_iteraton_step pr p v eo = do
+  v' <- policy_eval pr p eo v
+  p' <- policy_improve pr p eo v'
+  return (v',p')
 
 data PolicyContainer p s a = APolicy p | GPolicy (GenericPolicy s a)
 
@@ -177,13 +179,13 @@ withAnyPolicy pr ap handler = do
     GPolicy gp -> handler gp
 
 policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
-  => pr -> p -> EvalOpts -> m (GenericPolicy s a)
-policy_iteraton pr p eo = do
-  (GPolicy p) <- flip execStateT (APolicy p) $ loop $ do
-    ap <- get
+  => pr -> p -> StateVal s -> EvalOpts -> m (GenericPolicy s a)
+policy_iteraton pr p v eo = do
+  (_, GPolicy p) <- flip execStateT (v, APolicy p) $ loop $ do
+    (v,ap) <- get
     withAnyPolicy pr ap $ \p -> do
-        p' <- policy_iteraton_step pr p eo
-        put (GPolicy p')
+        (v', p') <- policy_iteraton_step pr p v eo
+        put (v', GPolicy p')
         when (policy_eq pr p p') $ do
           break ()
   return p

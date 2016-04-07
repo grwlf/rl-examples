@@ -28,10 +28,6 @@ data Game = Game {
   }
   deriving(Show)
 
-thegame = Game {
-    game_win_score = 100
-  }
-
 data Gambler = Gambler {
     g_pocket :: Int
   }
@@ -67,4 +63,12 @@ instance RLProblem Game Gambler Bet where
           , (1%2, assign (0 + bet_amount))]
     else
         Set.empty
+
+example_gambler :: IO ()
+example_gambler =
+  let
+      thegame = Game 10
+      opts = defaultOpts{eo_max_iter=5, eo_gamma = 1, eo_etha = 0.001}
+  in do
+  policy_iteraton thegame  (zero_sate_values thegame) opts
 
