@@ -44,6 +44,7 @@ data StateVal s = StateVal {
 
 class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
   rl_states :: pr -> Set s
+  rl_actions :: pr -> s -> Set a
   rl_transitions :: pr -> s -> a -> Set (Probability, (Reward, s))
 
 rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
@@ -130,12 +131,19 @@ data GenericPolicy s a = GenericPolicy {
 instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
   rlp_action GenericPolicy{..} _ s = gp_actions ! s
 
--- defaultGenericPolicy :: GenericPolicy s a
+uniformGenericPolicy :: (Ord a, RLProblem pr s a) => pr -> GenericPolicy s a
+uniformGenericPolicy pr = GenericPolicy{..} where
+  gp_actions = Map.fromList $ map (\s ->
+    let
+      as = rl_actions pr s
+    in
+    (s, Set.map (\a -> (1%(toInteger $ length as),a)) as)) (Set.toList $ rl_states pr)
+
 
 -- FIXME:check
-policy_improve :: forall pol pr s a m . (RLPolicy pol pr s a, MonadIO m, Ord a)
-  => pr -> pol -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
-policy_improve pr pol EvalOpts{..} StateVal{..} = do
+policy_improve :: forall pol pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
+  => pr -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
+policy_improve pr EvalOpts{..} StateVal{..} = do
   let sum l f = List.sum <$> forM (Set.toList l) f
 
   GenericPolicy <$> do
@@ -143,7 +151,7 @@ policy_improve pr pol EvalOpts{..} StateVal{..} = do
 
       forM_ (rl_states pr) $ \s -> do
         (maxv, maxa) <- do
-          foldlM (\(val,maxa) (fromRational -> pa, a) -> do
+          foldlM (\(val,maxa) a -> do
                     pi_s <- do
                       sum (rl_transitions pr s a) $ \(fromRational -> p, (r, s')) -> do
                         v_s' <- pure (v_map ! s')
@@ -156,7 +164,7 @@ policy_improve pr pol EvalOpts{..} StateVal{..} = do
                           GT -> (pi_s, Set.singleton a)
                           LT -> (val,maxa)
                           EQ -> (pi_s, Set.insert a maxa)
-                 ) (0.0 ,Set.empty) (rlp_action pol pr s)
+                 ) (0.0 ,Set.empty) (rl_actions pr s)
 
         let nmax = toInteger (Set.size maxa)
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
@@ -166,7 +174,7 @@ policy_iteraton_step :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a
   => pr -> p -> StateVal s -> EvalOpts -> m (StateVal s, GenericPolicy s a)
 policy_iteraton_step pr p v eo = do
   v' <- policy_eval pr p eo v
-  p' <- policy_improve pr p eo v'
+  p' <- policy_improve pr eo v'
   return (v',p')
 
 data PolicyContainer p s a = APolicy p | GPolicy (GenericPolicy s a)

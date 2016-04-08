@@ -38,6 +38,8 @@ instance RLProblem Game Gambler Bet where
   rl_states Game{..} =
     Set.fromList [Gambler pocket | pocket <- [0..game_win_score-1]]
 
+  rl_actions Game{..} Gambler{..} = Set.fromList [Bet x | x <- [1..g_pocket]]
+
   rl_transitions Game{..} Gambler{..} Bet{..} =
     let
 
@@ -70,5 +72,6 @@ example_gambler =
       thegame = Game 10
       opts = defaultOpts{eo_max_iter=5, eo_gamma = 1, eo_etha = 0.001}
   in do
-  policy_iteraton thegame  (zero_sate_values thegame) opts
+  popt <- policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
+  return ()
 

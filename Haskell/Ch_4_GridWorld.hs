@@ -70,17 +70,19 @@ move (GW (sx,sy)) (x,y) a =
 
 instance RLProblem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
+  rl_actions p@(GW (sx,sy)) s@(x,y) =
+    case s == (0,0) || s == (sx-1,sy-1) of
+      True -> Set.empty
+      False -> Set.fromList actions
   rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
 
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)
 
 instance RLPolicy GWRandomPolicy GW (Int,Int) Action where
-  rlp_action GWRandomPolicy (GW (sx,sy)) s =
-    case s == (0,0) || s == (sx-1,sy-1) of
-      True -> Set.empty
-      False -> Set.fromList [ (1%(toInteger $ length actions),a) | a <- actions]
-
+  rlp_action GWRandomPolicy g s =
+    let a = rl_actions g s
+    in (\x -> (1%(toInteger $ length a),x))`Set.map`a
 
 showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
 showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
