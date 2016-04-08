@@ -66,12 +66,23 @@ instance RLProblem Game Gambler Bet where
     else
         Set.empty
 
+showPolicy :: GenericPolicy Gambler Bet -> String
+showPolicy GenericPolicy{..} =
+  unlines $
+  map (\(Gambler{..}, set) ->
+    let
+      (mx, Bet{..}) = head $ List.sortOn fst $ Set.toList set
+    in
+    (show g_pocket ++ ": " ++ (replicate ((bet_amount*80)`div`100) '#')))
+    (Map.toAscList gp_actions)
+
 example_gambler :: IO ()
 example_gambler =
   let
       thegame = Game 10
       opts = defaultOpts{eo_max_iter=5, eo_gamma = 1, eo_etha = 0.001}
   in do
-  popt <- policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
+  popt <-
+    policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
   return ()
 

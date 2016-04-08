@@ -193,6 +193,7 @@ policy_iteraton pr p v eo = do
     (v,ap) <- get
     withAnyPolicy pr ap $ \p -> do
         (v', p') <- policy_iteraton_step pr p v eo
+        -- liftIO $ dbg p'
         put (v', GPolicy p')
         when (policy_eq pr p p') $ do
           break ()
