@@ -15,6 +15,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Ratio
 import Text.Printf
+import Debug.Trace
 
 import DP
 
@@ -36,7 +37,7 @@ data Gambler = Gambler {
 instance RLProblem Game Gambler Bet where
 
   rl_states Game{..} =
-    Set.fromList [Gambler pocket | pocket <- [0..game_win_score-1]]
+    Set.fromList [Gambler pocket | pocket <- [0..game_win_score]]
 
   rl_actions Game{..} Gambler{..} = Set.fromList [Bet x | x <- [1..g_pocket]]
 
@@ -54,7 +55,7 @@ instance RLProblem Game Gambler Bet where
 
       assign income =
         let
-            pocket' = g_pocket + income
+            pocket' = game_win_score `min` (g_pocket + income)
         in
         (reward pocket', Gambler pocket')
 
@@ -71,16 +72,24 @@ showPolicy GenericPolicy{..} =
   unlines $
   map (\(Gambler{..}, set) ->
     let
-      (mx, Bet{..}) = head $ List.sortOn fst $ Set.toList set
+      actmap = List.reverse $ List.sortOn fst $ Set.toList set
+      (mx, Bet{..})
+        | null actmap = (0, Bet 0)
+        | otherwise = head $ actmap
     in
-    (show g_pocket ++ ": " ++ (replicate ((bet_amount*80)`div`100) '#')))
+    show g_pocket ++ ": " ++ (replicate ((bet_amount*80)`div`100) '#'))
     (Map.toAscList gp_actions)
 
 example_gambler :: IO ()
 example_gambler =
   let
       thegame = Game 10
-      opts = defaultOpts{eo_max_iter=5, eo_gamma = 1, eo_etha = 0.001}
+      opts = defaultOpts{
+          eo_max_iter=5
+        , eo_gamma = 1
+        , eo_etha = 0.001
+        , eo_debug = putStrLn . showPolicy
+      }
   in do
   popt <-
     policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts

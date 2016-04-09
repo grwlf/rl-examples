@@ -47,11 +47,25 @@ class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
   rl_actions :: pr -> s -> Set a
   rl_transitions :: pr -> s -> a -> Set (Probability, (Reward, s))
 
-rl_prob_invariant :: forall p s a . (RLProblem p s a) => p -> s -> a -> Bool
-rl_prob_invariant p s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions p s a))
+invariant_prob :: forall pr s a . (RLProblem pr s a) => pr -> s -> a -> Bool
+invariant_prob pr s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions pr s a))
 
 class (RLProblem pr s a) => RLPolicy p pr s a where
   rlp_action :: p -> pr -> s -> Set (Probability, a)
+
+invariant1 :: (Monad m, RLProblem pr s a, Show s, Show a, Show pr) => pr -> m ()
+invariant1 pr = do
+  forM_ (rl_states pr) $ \s -> do
+    forM_ (rl_actions pr s) $ \a -> do
+      case Set.toList $ rl_transitions pr s a of
+        [] -> return ()
+        xs -> do
+          when (not $ invariant_prob pr s a) $ do
+            fail $ "State " ++ show s ++ ", action " ++ show a ++ ": probabilities don't sumup to 1"
+      forM_ (rl_transitions pr s a) $ \(p, (r, s')) -> do
+        when (not $ Set.member s' (rl_states pr)) $ do
+          fail $ "State " ++ show s ++ ", action " ++ show a ++ ": lead to invalid state " ++ show s'
+
 
 policy_eq :: (Eq a, RLPolicy p1 pr s a, RLPolicy p2 pr s a) => pr -> p1 -> p2 -> Bool
 policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
@@ -59,70 +73,6 @@ policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (r
 zero_sate_values :: forall pr s a m . (RLProblem pr s a)
   => pr -> StateVal s
 zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states pr)
-
-data EvalOpts = EvalOpts {
-    eo_gamma :: Double
-  -- ^ Forgetness
-  , eo_etha :: Double
-  -- ^ policy evaluation precision
-  , eo_max_iter :: Int
-  -- ^ policy evaluation iteration limit, [1..maxBound]
-  } deriving(Show)
-
-defaultOpts = EvalOpts {
-    eo_gamma = 0.9
-  , eo_etha = 0.1
-  , eo_max_iter = 10^3
-  }
-
-data EvalState s = EvalState {
-    _es_delta :: Double
-  , _es_v :: Map s Double
-  , _es_v' :: Map s Double
-  , _es_iter :: Int
-  } deriving(Show)
-
-makeLenses ''EvalState
-
-initEvalState StateVal{..} = EvalState 0.0 v_map v_map 0
-
--- | Iterative policy evaluation algorithm
--- Figure 4.1, pg.86.
-policy_eval :: forall pol p s a m . (RLPolicy pol p s a, MonadIO m)
-  => p -> pol -> EvalOpts -> StateVal s -> m (StateVal s)
-policy_eval p pol EvalOpts{..} v = do
-  let sum l f = List.sum <$> forM (Set.toList l) f
-
-  StateVal . view es_v <$> do
-    flip execStateT (initEvalState v) $ loop $ do
-
-      i <- use es_iter
-      when (i > eo_max_iter-1) $ do
-        break ()
-
-      es_delta %= const 0.0
-
-      forM_ (rl_states p) $ \s -> do
-        v_s <- uses es_v (!s)
-        v's <- do
-          sum (rlp_action pol p s) $ \(fromRational -> pa, a) -> do
-            (pa*) <$> do
-              sum (rl_transitions p s a) $ \(fromRational -> p, (r, s')) -> do
-                v_s' <- uses es_v (!s')
-                pure $ p * (r + eo_gamma * (v_s'))
-
-        es_v' %= (Map.insert s v's)
-        es_delta %= (`max`(abs (v's - v_s)))
-
-      d <- use es_delta
-      when (d < eo_etha) $ do
-        break ()
-
-      v' <- use es_v'
-      es_v %= const v'
-
-      es_iter %= (+1)
-
 
 data GenericPolicy s a = GenericPolicy {
   gp_actions :: Map s (Set (Probability,a))
@@ -140,9 +90,76 @@ uniformGenericPolicy pr = GenericPolicy{..} where
     (s, Set.map (\a -> (1%(toInteger $ length as),a)) as)) (Set.toList $ rl_states pr)
 
 
+data EvalOpts s a = EvalOpts {
+    eo_gamma :: Double
+  -- ^ Forgetness
+  , eo_etha :: Double
+  -- ^ policy evaluation precision
+  , eo_max_iter :: Int
+  -- ^ policy evaluation iteration limit, [1..maxBound]
+  , eo_debug :: GenericPolicy s a -> IO ()
+  } --deriving(Show)
+
+defaultOpts = EvalOpts {
+    eo_gamma = 0.9
+  , eo_etha = 0.1
+  , eo_max_iter = 10^3
+  , eo_debug = error "no debug specified"
+  }
+
+data EvalState s = EvalState {
+    _es_delta :: Double
+  , _es_v :: Map s Double
+  , _es_v' :: Map s Double
+  , _es_iter :: Int
+  } deriving(Show)
+
+makeLenses ''EvalState
+
+initEvalState StateVal{..} = EvalState 0.0 v_map v_map 0
+
+-- | Iterative policy evaluation algorithm
+-- Figure 4.1, pg.86.
+policy_eval :: forall p pr s a m . (RLPolicy p pr s a, MonadIO m)
+  => pr -> p -> EvalOpts s a -> StateVal s -> m (StateVal s)
+policy_eval pr p EvalOpts{..} v = do
+  let sum l f = List.sum <$> forM (Set.toList l) f
+
+  StateVal . view es_v <$> do
+    flip execStateT (initEvalState v) $ loop $ do
+
+      i <- use es_iter
+      when (i > eo_max_iter-1) $ do
+        break ()
+
+      es_delta %= const 0.0
+
+      forM_ (rl_states pr) $ \s -> do
+        v_s <- uses es_v (!s)
+        v's <- do
+          sum (rlp_action p pr s) $ \(fromRational -> pa, a) -> do
+            (pa*) <$> do
+              sum (rl_transitions pr s a) $ \(fromRational -> p, (r, s')) -> do
+                v_s' <- uses es_v (!s')
+                pure $ p * (r + eo_gamma * (v_s'))
+
+        es_v' %= (Map.insert s v's)
+        es_delta %= (`max`(abs (v's - v_s)))
+
+      d <- use es_delta
+      when (d < eo_etha) $ do
+        break ()
+
+      v' <- use es_v'
+      es_v %= const v'
+
+      es_iter %= (+1)
+
+
+
 -- FIXME:check
-policy_improve :: forall pol pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
-  => pr -> EvalOpts -> StateVal s -> m (GenericPolicy s a)
+policy_improve :: forall p pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
+  => pr -> EvalOpts s a -> StateVal s -> m (GenericPolicy s a)
 policy_improve pr EvalOpts{..} StateVal{..} = do
   let sum l f = List.sum <$> forM (Set.toList l) f
 
@@ -170,8 +187,8 @@ policy_improve pr EvalOpts{..} StateVal{..} = do
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
 
 
-policy_iteraton_step :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
-  => pr -> p -> StateVal s -> EvalOpts -> m (StateVal s, GenericPolicy s a)
+policy_iteraton_step :: forall p pr s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
+  => pr -> p -> StateVal s -> EvalOpts s a -> m (StateVal s, GenericPolicy s a)
 policy_iteraton_step pr p v eo = do
   v' <- policy_eval pr p eo v
   p' <- policy_improve pr eo v'
@@ -187,13 +204,13 @@ withAnyPolicy pr ap handler = do
     GPolicy gp -> handler gp
 
 policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
-  => pr -> p -> StateVal s -> EvalOpts -> m (GenericPolicy s a)
+  => pr -> p -> StateVal s -> EvalOpts s a -> m (GenericPolicy s a)
 policy_iteraton pr p v eo = do
   (_, GPolicy p) <- flip execStateT (v, APolicy p) $ loop $ do
     (v,ap) <- get
     withAnyPolicy pr ap $ \p -> do
         (v', p') <- policy_iteraton_step pr p v eo
-        -- liftIO $ dbg p'
+        liftIO $ eo_debug eo p'
         put (v', GPolicy p')
         when (policy_eq pr p p') $ do
           break ()
