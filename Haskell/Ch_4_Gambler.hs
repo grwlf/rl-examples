@@ -39,7 +39,11 @@ instance RLProblem Game Gambler Bet where
   rl_states Game{..} =
     Set.fromList [Gambler pocket | pocket <- [0..game_win_score]]
 
-  rl_actions Game{..} Gambler{..} = Set.fromList [Bet x | x <- [1..g_pocket]]
+  rl_actions Game{..} Gambler{..} =
+    if g_pocket >= 100 || g_pocket <= 0 then
+      Set.empty
+    else
+      Set.fromList [Bet x | x <- [1..g_pocket]]
 
   rl_transitions Game{..} Gambler{..} Bet{..} =
     let
@@ -55,9 +59,9 @@ instance RLProblem Game Gambler Bet where
 
       assign income =
         let
-            pocket' = game_win_score `min` (g_pocket + income)
+            pocket' = g_pocket + income
         in
-        (reward pocket', Gambler pocket')
+        (reward pocket', Gambler (game_win_score `min` pocket'))
 
     in
     if (abs (reward g_pocket)) < 1.0 then
@@ -77,13 +81,13 @@ showPolicy GenericPolicy{..} =
         | null actmap = (0, Bet 0)
         | otherwise = head $ actmap
     in
-    show g_pocket ++ ": " ++ (replicate ((bet_amount*80)`div`100) '#'))
+    show g_pocket ++ ": " ++ (replicate bet_amount '#'))
     (Map.toAscList gp_actions)
 
 example_gambler :: IO ()
 example_gambler =
   let
-      thegame = Game 10
+      thegame = Game 100
       opts = defaultOpts{
           eo_max_iter=5
         , eo_gamma = 1
