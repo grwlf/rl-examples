@@ -100,6 +100,12 @@ showPolicy pr@(GW (sx,sy)) p = liftIO $ do
     printf "\n"
 
 example_4_1 :: IO ()
-example_4_1 = showStateVal gw =<< policy_eval gw GWRandomPolicy opts (zero_sate_values gw) where
-  opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
+example_4_1 =
+  let
+    opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
+  in do
+  v <- policy_eval gw GWRandomPolicy opts (zero_sate_values gw)
+  showStateVal gw v
+  p' <- policy_improve gw opts v
+  showPolicy gw p'
 

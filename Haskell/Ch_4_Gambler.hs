@@ -40,7 +40,7 @@ instance RLProblem Game Gambler Bet where
     Set.fromList [Gambler pocket | pocket <- [0..game_win_score]]
 
   rl_actions Game{..} Gambler{..} =
-    if g_pocket >= 100 || g_pocket <= 0 then
+    if g_pocket >= game_win_score || g_pocket <= 0 then
       Set.empty
     else
       Set.fromList [Bet x | x <- [1..g_pocket]]
@@ -52,10 +52,7 @@ instance RLProblem Game Gambler Bet where
         if pocket >= game_win_score then
           1.0
         else
-          if pocket <= 0 then
-            -1.0
-          else
-            0.0
+          0.0
 
       assign income =
         let
@@ -81,16 +78,16 @@ showPolicy GenericPolicy{..} =
         | null actmap = (0, Bet 0)
         | otherwise = head $ actmap
     in
-    show g_pocket ++ ": " ++ (replicate bet_amount '#'))
+    printf ("%02d: " ++ (replicate bet_amount '#') ++ show bet_amount) g_pocket)
     (Map.toAscList gp_actions)
 
 example_gambler :: IO ()
 example_gambler =
   let
-      thegame = Game 100
-      opts = defaultOpts{
-          eo_max_iter=5
-        , eo_gamma = 1
+      thegame = Game 40
+      opts = defaultOpts {
+          eo_max_iter=2
+        , eo_gamma = 0.9
         , eo_etha = 0.001
         , eo_debug = putStrLn . showPolicy
       }
