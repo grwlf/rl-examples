@@ -98,7 +98,8 @@ data EvalOpts s a = EvalOpts {
   , eo_max_iter :: Int
   -- ^ policy evaluation iteration limit, [1..maxBound]
   , eo_floating_precision :: Double
-  , eo_debug :: GenericPolicy s a -> IO ()
+
+  , eo_debug :: (StateVal s, GenericPolicy s a) -> IO ()
   } --deriving(Show)
 
 defaultOpts = EvalOpts {
@@ -157,12 +158,15 @@ policy_eval pr p EvalOpts{..} v = do
 
       es_iter %= (+1)
 
-
+policy_action_value pr s a EvalOpts{..} StateVal{..} =
+  List.sum $
+  flip map (Set.toList $ rl_transitions pr s a) $ \(fromRational -> p, (r, s')) ->
+    p * (r + eo_gamma * (v_map ! s'))
 
 -- FIXME:check
 policy_improve :: forall p pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
   => pr -> EvalOpts s a -> StateVal s -> m (GenericPolicy s a)
-policy_improve pr EvalOpts{..} StateVal{..} = do
+policy_improve pr eo@EvalOpts{..} v@StateVal{..} = do
   let sum l f = List.sum <$> forM (Set.toList l) f
 
   GenericPolicy <$> do
@@ -171,10 +175,7 @@ policy_improve pr EvalOpts{..} StateVal{..} = do
       forM_ (rl_states pr) $ \s -> do
         (maxv, maxa) <- do
           foldlM (\(val,maxa) a -> do
-                    pi_s <- do
-                      sum (rl_transitions pr s a) $ \(fromRational -> p, (r, s')) -> do
-                        v_s' <- pure (v_map ! s')
-                        pure $ p * (r + eo_gamma * (v_s'))
+                    pi_s <- pure $ policy_action_value pr s a eo v
                     return $
                       if Set.null maxa then
                         (pi_s, Set.singleton a)
@@ -188,7 +189,7 @@ policy_improve pr EvalOpts{..} StateVal{..} = do
                             (val,maxa)
                           else
                             -- EQ
-                            (pi_s, Set.insert a maxa)
+                            (val, Set.insert a maxa)
                  ) (0.0 ,Set.empty) (rl_actions pr s)
 
         let nmax = toInteger (Set.size maxa)
@@ -212,16 +213,16 @@ withAnyPolicy pr ap handler = do
     GPolicy gp -> handler gp
 
 policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
-  => pr -> p -> StateVal s -> EvalOpts s a -> m (GenericPolicy s a)
+  => pr -> p -> StateVal s -> EvalOpts s a -> m (StateVal s, GenericPolicy s a)
 policy_iteraton pr p v eo = do
-  (_, GPolicy p) <- flip execStateT (v, APolicy p) $ loop $ do
+  (v', GPolicy p') <- flip execStateT (v, APolicy p) $ loop $ do
     (v,ap) <- get
     withAnyPolicy pr ap $ \p -> do
         (v', p') <- policy_iteraton_step pr p v eo
-        liftIO $ eo_debug eo p'
+        liftIO $ eo_debug eo (v', p')
         put (v', GPolicy p')
         when (policy_eq pr p p') $ do
           break ()
-  return p
+  return (v',p')
 
 

@@ -52,7 +52,10 @@ instance RLProblem Game Gambler Bet where
         if pocket >= game_win_score then
           1.0
         else
-          0.0
+          if pocket <= 0 then
+            0.0
+          else
+            0.0
 
       assign income =
         let
@@ -71,28 +74,43 @@ instance RLProblem Game Gambler Bet where
 showPolicy :: GenericPolicy Gambler Bet -> String
 showPolicy GenericPolicy{..} =
   unlines $
-  map (\(Gambler{..}, set) ->
+  flip map (Map.toAscList gp_actions) $ \(Gambler{..}, set) ->
     let
       actmap = List.reverse $ List.sortOn fst $ Set.toList set
       (mx, Bet{..})
         | null actmap = (0, Bet 0)
         | otherwise = head $ actmap
     in
-    printf ("%02d: " ++ (replicate bet_amount '#') ++ show bet_amount) g_pocket)
-    (Map.toAscList gp_actions)
+    (printf ("%02d: ") g_pocket) ++ (replicate bet_amount '#') ++ show bet_amount ++ "  " ++ show actmap
+
+showStateVal StateVal{..} =
+  unlines $
+  flip map (Map.toAscList $ v_map) $ \ (Gambler{..},v) ->
+    (printf ("%02d: ") g_pocket) ++ show v
+
+debugState :: (StateVal Gambler, GenericPolicy Gambler Bet) -> IO ()
+debugState (v,p) = do
+  putStrLn $ showStateVal v
+  putStrLn $ showPolicy p
 
 example_gambler :: IO ()
 example_gambler =
   let
       thegame = Game 100
       opts = defaultOpts {
-          eo_max_iter=2
+          eo_max_iter=3
         , eo_gamma = 0.9
         , eo_etha = 0.001
-        , eo_debug = putStrLn . showPolicy
+        , eo_floating_precision = 1/(10^5)
+        , eo_debug = debugState
       }
   in do
-  popt <-
+  (v,p) <-
     policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
-  return ()
+
+  -- putStrLn $ show $ policy_action_value thegame (Gambler 33) (Bet 33) opts v
+  -- putStrLn $ show $ policy_action_value thegame (Gambler 33) (Bet 17) opts v
+  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 47) opts v
+  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 28) opts v
+  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 22) opts v
 
