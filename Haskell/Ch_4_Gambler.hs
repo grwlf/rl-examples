@@ -43,19 +43,22 @@ instance RLProblem Game Gambler Bet where
     if g_pocket >= game_win_score || g_pocket <= 0 then
       Set.empty
     else
-      Set.fromList [Bet x | x <- [1..g_pocket]]
+      let
+        border = g_pocket `min` (game_win_score - g_pocket)
+      in
+      Set.fromList [Bet x | x <- [1..border]]
 
   rl_transitions Game{..} Gambler{..} Bet{..} =
     let
 
       reward pocket =
         if pocket >= game_win_score then
-          1.0
+          1
         else
           if pocket <= 0 then
-            0.0
+            0
           else
-            0.0
+            0
 
       assign income =
         let
@@ -64,19 +67,19 @@ instance RLProblem Game Gambler Bet where
         (reward pocket', Gambler (game_win_score `min` pocket'))
 
     in
-    if (abs (reward g_pocket)) < 1.0 then
+    if g_pocket >= game_win_score || g_pocket <= 0 then
+        Set.empty
+    else
         Set.fromList [
             (1%2, assign (0 - bet_amount))
           , (1%2, assign (0 + bet_amount))]
-    else
-        Set.empty
 
 showPolicy :: GenericPolicy Gambler Bet -> String
 showPolicy GenericPolicy{..} =
   unlines $
   flip map (Map.toAscList gp_actions) $ \(Gambler{..}, set) ->
     let
-      actmap = List.reverse $ List.sortOn fst $ Set.toList set
+      actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
       (mx, Bet{..})
         | null actmap = (0, Bet 0)
         | otherwise = head $ actmap
@@ -98,19 +101,23 @@ example_gambler =
   let
       thegame = Game 100
       opts = defaultOpts {
-          eo_max_iter=3
-        , eo_gamma = 0.9
-        , eo_etha = 0.001
-        , eo_floating_precision = 1/(10^5)
+          eo_max_iter=5
+        , eo_gamma = 1.0
+        , eo_etha = 0.00001
+        -- , eo_floating_precision = 1/(10^5)
         , eo_debug = debugState
       }
   in do
   (v,p) <-
     policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
 
-  -- putStrLn $ show $ policy_action_value thegame (Gambler 33) (Bet 33) opts v
-  -- putStrLn $ show $ policy_action_value thegame (Gambler 33) (Bet 17) opts v
-  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 47) opts v
-  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 28) opts v
-  putStrLn $ show $ policy_action_value thegame (Gambler 47) (Bet 22) opts v
+  let
+    stateval a b = (fromRational $ policy_action_value thegame (Gambler a) (Bet b) opts v :: Double)
+
+  putStrLn $ show $ stateval 22 22
+  putStrLn $ show $ stateval 22 3
+
+  -- putStrLn $ show $ stateval 47 47
+  -- putStrLn $ show $ stateval 47 28
+  -- putStrLn $ show $ stateval 47 22
 

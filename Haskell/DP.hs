@@ -36,10 +36,10 @@ debug = liftIO . putStrLn
 type Point = (Int,Int)
 
 type Probability = Rational
-type Reward = Double
+type Reward = Rational
 
 data StateVal s = StateVal {
-    v_map :: Map s Double
+    v_map :: Map s Rational
   } deriving(Show)
 
 class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
@@ -91,13 +91,13 @@ uniformGenericPolicy pr = GenericPolicy{..} where
 
 
 data EvalOpts s a = EvalOpts {
-    eo_gamma :: Double
+    eo_gamma :: Rational
   -- ^ Forgetness
-  , eo_etha :: Double
+  , eo_etha :: Rational
   -- ^ policy evaluation precision
   , eo_max_iter :: Int
   -- ^ policy evaluation iteration limit, [1..maxBound]
-  , eo_floating_precision :: Double
+  -- , eo_floating_precision :: Double
 
   , eo_debug :: (StateVal s, GenericPolicy s a) -> IO ()
   } --deriving(Show)
@@ -106,20 +106,20 @@ defaultOpts = EvalOpts {
     eo_gamma = 0.9
   , eo_etha = 0.1
   , eo_max_iter = 10^3
-  , eo_floating_precision = 1/10^9
+  -- , eo_floating_precision = 1/10^9
   , eo_debug = error "no debug specified"
   }
 
 data EvalState s = EvalState {
-    _es_delta :: Double
-  , _es_v :: Map s Double
-  , _es_v' :: Map s Double
+    _es_delta :: Rational
+  , _es_v :: Map s Rational
+  , _es_v' :: Map s Rational
   , _es_iter :: Int
   } deriving(Show)
 
 makeLenses ''EvalState
 
-initEvalState StateVal{..} = EvalState 0.0 v_map v_map 0
+initEvalState StateVal{..} = EvalState 0 v_map v_map 0
 
 -- | Iterative policy evaluation algorithm
 -- Figure 4.1, pg.86.
@@ -135,7 +135,7 @@ policy_eval pr p EvalOpts{..} v = do
       when (i > eo_max_iter-1) $ do
         break ()
 
-      es_delta %= const 0.0
+      es_delta %= const 0
 
       forM_ (rl_states pr) $ \s -> do
         v_s <- uses es_v (!s)
@@ -180,17 +180,17 @@ policy_improve pr eo@EvalOpts{..} v@StateVal{..} = do
                       if Set.null maxa then
                         (pi_s, Set.singleton a)
                       else
-                        if pi_s > val + eo_floating_precision then
+                        if pi_s > val then
                           -- GT
                           (pi_s, Set.singleton a)
                         else
-                          if pi_s < val - eo_floating_precision then
+                          if pi_s < val then
                             --LT
                             (val,maxa)
                           else
                             -- EQ
                             (val, Set.insert a maxa)
-                 ) (0.0 ,Set.empty) (rl_actions pr s)
+                 ) (0 ,Set.empty) (rl_actions pr s)
 
         let nmax = toInteger (Set.size maxa)
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
