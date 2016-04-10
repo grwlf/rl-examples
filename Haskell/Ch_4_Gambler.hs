@@ -74,39 +74,38 @@ instance RLProblem Game Gambler Bet where
             (1%2, assign (0 - bet_amount))
           , (1%2, assign (0 + bet_amount))]
 
-showPolicy :: GenericPolicy Gambler Bet -> String
-showPolicy GenericPolicy{..} =
-  unlines $
-  flip map (Map.toAscList gp_actions) $ \(Gambler{..}, set) ->
-    let
-      actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
-      (mx, Bet{..})
-        | null actmap = (0, Bet 0)
-        | otherwise = head $ actmap
-    in
-    (printf ("%02d: ") g_pocket) ++ (replicate bet_amount '#') ++ show bet_amount ++ "  " ++ show actmap
-
-showStateVal StateVal{..} =
-  unlines $
-  flip map (Map.toAscList $ v_map) $ \ (Gambler{..},v) ->
-    (printf ("%02d: ") g_pocket) ++ show v
-
-debugState :: (StateVal Gambler, GenericPolicy Gambler Bet) -> IO ()
-debugState (v,p) = do
-  putStrLn $ showStateVal v
-  putStrLn $ showPolicy p
-
 example_gambler :: IO ()
 example_gambler =
   let
       thegame = Game 100
       opts = defaultOpts {
-          eo_max_iter=5
+          eo_max_iter=3
         , eo_gamma = 1.0
         , eo_etha = 0.00001
         -- , eo_floating_precision = 1/(10^5)
-        , eo_debug = debugState
+        , eo_debug = const $ return ()
       }
+
+      showValPolicy (v@StateVal{..}, GenericPolicy{..}) =
+        unlines $
+        flip map (Map.toAscList v_map `zip` Map.toAscList gp_actions) $ \((_, vs) , (s@Gambler{..}, set)) ->
+          let
+            actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
+
+            show_actmap =
+              List.intercalate "," $
+              flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (fromRational $ policy_action_value thegame s a opts v :: Double)) ++ ")"
+
+            (mx, Bet{..})
+              | null actmap = (0, Bet 0)
+              | otherwise = head $ actmap
+            show_vs = printf "% 2.5f" (fromRational vs :: Double)
+          in
+          (printf ("%02d: ") g_pocket) ++ (replicate bet_amount '#') ++ show bet_amount ++ " " ++ show_vs ++ "  " ++ show_actmap
+
+      debugState :: (StateVal Gambler, GenericPolicy Gambler Bet) -> IO ()
+      debugState = putStrLn . showValPolicy
+
   in do
   (v,p) <-
     policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
@@ -114,8 +113,16 @@ example_gambler =
   let
     stateval a b = (fromRational $ policy_action_value thegame (Gambler a) (Bet b) opts v :: Double)
 
+  debugState (v,p)
+
   putStrLn $ show $ stateval 22 22
   putStrLn $ show $ stateval 22 3
+
+  v' <- policy_eval thegame p opts{eo_max_iter=100, eo_etha=0.0000001} v
+  p' <- policy_improve thegame opts v'
+
+  debugState (v',p')
+
 
   -- putStrLn $ show $ stateval 47 47
   -- putStrLn $ show $ stateval 47 28
