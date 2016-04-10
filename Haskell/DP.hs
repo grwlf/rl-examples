@@ -97,6 +97,7 @@ data EvalOpts s a = EvalOpts {
   -- ^ policy evaluation precision
   , eo_max_iter :: Int
   -- ^ policy evaluation iteration limit, [1..maxBound]
+  , eo_floating_precision :: Double
   , eo_debug :: GenericPolicy s a -> IO ()
   } --deriving(Show)
 
@@ -104,6 +105,7 @@ defaultOpts = EvalOpts {
     eo_gamma = 0.9
   , eo_etha = 0.1
   , eo_max_iter = 10^3
+  , eo_floating_precision = 1/10^9
   , eo_debug = error "no debug specified"
   }
 
@@ -177,10 +179,16 @@ policy_improve pr EvalOpts{..} StateVal{..} = do
                       if Set.null maxa then
                         (pi_s, Set.singleton a)
                       else
-                        case pi_s `compare` val of
-                          GT -> (pi_s, Set.singleton a)
-                          LT -> (val,maxa)
-                          EQ -> (pi_s, Set.insert a maxa)
+                        if pi_s > val + eo_floating_precision then
+                          -- GT
+                          (pi_s, Set.singleton a)
+                        else
+                          if pi_s < val - eo_floating_precision then
+                            --LT
+                            (val,maxa)
+                          else
+                            -- EQ
+                            (pi_s, Set.insert a maxa)
                  ) (0.0 ,Set.empty) (rl_actions pr s)
 
         let nmax = toInteger (Set.size maxa)

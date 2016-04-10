@@ -84,7 +84,7 @@ showPolicy GenericPolicy{..} =
 example_gambler :: IO ()
 example_gambler =
   let
-      thegame = Game 40
+      thegame = Game 100
       opts = defaultOpts {
           eo_max_iter=2
         , eo_gamma = 0.9
