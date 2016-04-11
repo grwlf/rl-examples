@@ -60,29 +60,24 @@ instance RLProblem Game Gambler Bet where
           else
             0
 
-      assign income =
-        let
-            pocket' = g_pocket + income
-        in
-        (reward pocket', Gambler (game_win_score `min` pocket'))
+      assign pocket' = (reward pocket', Gambler (game_win_score `min` pocket'))
 
     in
     if g_pocket >= game_win_score || g_pocket <= 0 then
         Set.empty
     else
         Set.fromList [
-            (1%2, assign (0 - bet_amount))
-          , (1%2, assign (0 + bet_amount))]
+            (6%10, assign (g_pocket - bet_amount))
+          , (4%10, assign (g_pocket + bet_amount))]
 
 example_gambler :: IO ()
 example_gambler =
   let
       thegame = Game 100
       opts = defaultOpts {
-          eo_max_iter=3
+          eo_max_iter = 1
         , eo_gamma = 1.0
         , eo_etha = 0.00001
-        -- , eo_floating_precision = 1/(10^5)
         , eo_debug = const $ return ()
       }
 
@@ -94,7 +89,7 @@ example_gambler =
 
             show_actmap =
               List.intercalate "," $
-              flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (fromRational $ policy_action_value thegame s a opts v :: Double)) ++ ")"
+              flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (stateval v s a)) ++ ")"
 
             (mx, Bet{..})
               | null actmap = (0, Bet 0)
@@ -106,25 +101,9 @@ example_gambler =
       debugState :: (StateVal Gambler, GenericPolicy Gambler Bet) -> IO ()
       debugState = putStrLn . showValPolicy
 
+      stateval v s a = (fromRational $ policy_action_value thegame s a opts v :: Double)
+
   in do
-  (v,p) <-
-    policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
-
-  let
-    stateval a b = (fromRational $ policy_action_value thegame (Gambler a) (Bet b) opts v :: Double)
-
+  (v,p) <- policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts
   debugState (v,p)
-
-  putStrLn $ show $ stateval 22 22
-  putStrLn $ show $ stateval 22 3
-
-  v' <- policy_eval thegame p opts{eo_max_iter=100, eo_etha=0.0000001} v
-  p' <- policy_improve thegame opts v'
-
-  debugState (v',p')
-
-
-  -- putStrLn $ show $ stateval 47 47
-  -- putStrLn $ show $ stateval 47 28
-  -- putStrLn $ show $ stateval 47 22
 
