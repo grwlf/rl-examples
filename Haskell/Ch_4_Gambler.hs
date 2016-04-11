@@ -70,8 +70,8 @@ instance RLProblem Game Gambler Bet where
             (6%10, assign (g_pocket - bet_amount))
           , (4%10, assign (g_pocket + bet_amount))]
 
-example_gambler :: IO ()
-example_gambler =
+example_4_3 :: IO ()
+example_4_3 =
   let
       thegame = Game 100
       opts = defaultOpts {
