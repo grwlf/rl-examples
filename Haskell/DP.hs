@@ -48,25 +48,25 @@ data StateVal s = StateVal {
     v_map :: Map s Rational
   } deriving(Show)
 
-zero_sate_values :: forall pr s a m . (RLProblem pr s a)
+zero_sate_values :: forall pr s a m . (DP_Problem pr s a)
   => pr -> StateVal s
 zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states pr)
 
 
 -- FIXME: Convert to fold-like style
-class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
+class (Ord s) => DP_Problem pr s a | pr -> s , pr -> a where
   rl_states :: pr -> Set s
   rl_actions :: pr -> s -> Set a
   rl_transitions :: pr -> s -> a -> Set (Probability, s)
   rl_reward :: pr -> s -> a -> s -> Reward
 
-invariant_prob :: forall pr s a . (RLProblem pr s a) => pr -> s -> a -> Bool
+invariant_prob :: forall pr s a . (DP_Problem pr s a) => pr -> s -> a -> Bool
 invariant_prob pr s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions pr s a))
 
-class (RLProblem pr s a) => RLPolicy p pr s a where
+class (DP_Problem pr s a) => DP_Policy p pr s a where
   rlp_action :: p -> pr -> s -> Set (Probability, a)
 
-invariant1 :: (Monad m, RLProblem pr s a, Show s, Show a, Show pr) => pr -> m ()
+invariant1 :: (Monad m, DP_Problem pr s a, Show s, Show a, Show pr) => pr -> m ()
 invariant1 pr = do
   forM_ (rl_states pr) $ \s -> do
     forM_ (rl_actions pr s) $ \a -> do
@@ -79,17 +79,17 @@ invariant1 pr = do
         when (not $ Set.member s' (rl_states pr)) $ do
           fail $ "State " ++ show s ++ ", action " ++ show a ++ ": lead to invalid state " ++ show s'
 
-policy_eq :: (Eq a, RLPolicy p1 pr s a, RLPolicy p2 pr s a) => pr -> p1 -> p2 -> Bool
+policy_eq :: (Eq a, DP_Policy p1 pr s a, DP_Policy p2 pr s a) => pr -> p1 -> p2 -> Bool
 policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
 
 data GenericPolicy s a = GenericPolicy {
   gp_actions :: Map s (Set (Probability,a))
   } deriving(Eq,Ord, Show)
 
-instance (RLProblem p s a) => RLPolicy (GenericPolicy s a) p s a where
+instance (DP_Problem p s a) => DP_Policy (GenericPolicy s a) p s a where
   rlp_action GenericPolicy{..} _ s = gp_actions ! s
 
-uniformGenericPolicy :: (Ord a, RLProblem pr s a) => pr -> GenericPolicy s a
+uniformGenericPolicy :: (Ord a, DP_Problem pr s a) => pr -> GenericPolicy s a
 uniformGenericPolicy pr = GenericPolicy{..} where
   gp_actions = Map.fromList $ map (\s ->
     let
@@ -142,7 +142,7 @@ initEvalState StateVal{..} = EvalState 0 v_map v_map 0
 
 -- | Iterative policy evaluation algorithm
 -- Figure 4.1, pg.86.
-policy_eval :: forall p pr s a m . (RLPolicy p pr s a, MonadIO m)
+policy_eval :: forall p pr s a m . (DP_Policy p pr s a, MonadIO m)
   => pr -> p -> EvalOpts s a -> StateVal s -> m (StateVal s)
 policy_eval pr p EvalOpts{..} v = do
   let sum l f = List.sum <$> forM (Set.toList l) f
@@ -182,7 +182,7 @@ policy_action_value pr s a EvalOpts{..} StateVal{..} =
   flip map (Set.toList $ rl_transitions pr s a) $ \(fromRational -> p, s') ->
     p * ((rl_reward pr s a s') + eo_gamma * (v_map ! s'))
 
-policy_improve :: forall p pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
+policy_improve :: forall p pr s a m . (DP_Problem pr s a, MonadIO m, Ord a)
   => pr -> EvalOpts s a -> StateVal s -> m (GenericPolicy s a)
 policy_improve pr eo@EvalOpts{..} v@StateVal{..} = do
   let sum l f = List.sum <$> forM (Set.toList l) f
@@ -214,7 +214,7 @@ policy_improve pr eo@EvalOpts{..} v@StateVal{..} = do
         modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
 
 
-policy_iteraton_step :: forall p pr s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
+policy_iteraton_step :: forall p pr s a m . (DP_Policy p pr s a, MonadIO m, Ord a)
   => pr -> p -> StateVal s -> EvalOpts s a -> m (StateVal s, GenericPolicy s a)
 policy_iteraton_step pr p v eo = do
   v' <- policy_eval pr p eo v
@@ -223,14 +223,14 @@ policy_iteraton_step pr p v eo = do
 
 data PolicyContainer p s a = APolicy p | GPolicy (GenericPolicy s a)
 
-withAnyPolicy :: forall p pr s a m x . (RLPolicy p pr s a, Monad m)
-  => pr -> PolicyContainer p s a -> (forall p1 . RLPolicy p1 pr s a => p1 -> m x) -> m x
+withAnyPolicy :: forall p pr s a m x . (DP_Policy p pr s a, Monad m)
+  => pr -> PolicyContainer p s a -> (forall p1 . DP_Policy p1 pr s a => p1 -> m x) -> m x
 withAnyPolicy pr ap handler = do
   case ap of
     APolicy p -> handler p
     GPolicy gp -> handler gp
 
-policy_iteraton :: forall pr p s a m . (RLPolicy p pr s a, MonadIO m, Ord a)
+policy_iteraton :: forall pr p s a m . (DP_Policy p pr s a, MonadIO m, Ord a)
   => pr -> p -> StateVal s -> EvalOpts s a -> m (StateVal s, GenericPolicy s a)
 policy_iteraton pr p v eo = do
   (v', GPolicy p') <- flip execStateT (v, APolicy p) $ loop $ do

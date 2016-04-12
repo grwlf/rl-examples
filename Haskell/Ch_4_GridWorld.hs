@@ -55,7 +55,7 @@ data GW = GW {
 
 gw = GW (4,4)
 
-instance RLProblem GW (Int,Int) Action where
+instance DP_Problem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
 
   rl_actions p@(GW (sx,sy)) s@(x,y) =
@@ -85,7 +85,7 @@ instance RLProblem GW (Int,Int) Action where
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)
 
-instance RLPolicy GWRandomPolicy GW (Int,Int) Action where
+instance DP_Policy GWRandomPolicy GW (Int,Int) Action where
   rlp_action GWRandomPolicy g s =
     let a = rl_actions g s
     in (\x -> (1%(toInteger $ length a),x))`Set.map`a
@@ -97,7 +97,7 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
       printf "%-2.1f " (fromRational $ v_map ! (x,y) :: Double)
     printf "\n"
 
-showPolicy :: (MonadIO m, RLPolicy p GW Point Action) => GW -> p -> m ()
+showPolicy :: (MonadIO m, DP_Policy p GW Point Action) => GW -> p -> m ()
 showPolicy pr@(GW (sx,sy)) p = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do

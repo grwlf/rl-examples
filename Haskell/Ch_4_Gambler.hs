@@ -35,7 +35,7 @@ data Gambler = Gambler {
   deriving(Show, Eq, Ord)
 
 
-instance RLProblem Game Gambler Bet where
+instance DP_Problem Game Gambler Bet where
 
   rl_states Game{..} =
     Set.fromList [Gambler pocket | pocket <- [0..game_win_score]]
