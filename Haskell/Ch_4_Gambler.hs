@@ -17,7 +17,6 @@ import Data.Ratio
 import Text.Printf
 import Debug.Trace
 
-import Types as RL
 import DP as RL
 
 data Bet = Bet {

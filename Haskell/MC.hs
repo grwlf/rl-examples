@@ -29,5 +29,3 @@ import Prelude hiding(break)
 import Data.Foldable
 import Text.Printf
 import Debug.Trace
-
-import Types as RL
