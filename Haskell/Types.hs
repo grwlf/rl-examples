@@ -32,7 +32,8 @@ zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList
 class (Ord s) => RLProblem pr s a | pr -> s , pr -> a where
   rl_states :: pr -> Set s
   rl_actions :: pr -> s -> Set a
-  rl_transitions :: pr -> s -> a -> Set (Probability, (Reward, s))
+  rl_transitions :: pr -> s -> a -> Set (Probability, s)
+  rl_reward :: pr -> s -> a -> s -> Reward
 
 invariant_prob :: forall pr s a . (RLProblem pr s a) => pr -> s -> a -> Bool
 invariant_prob pr s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions pr s a))
@@ -49,7 +50,7 @@ invariant1 pr = do
         xs -> do
           when (not $ invariant_prob pr s a) $ do
             fail $ "State " ++ show s ++ ", action " ++ show a ++ ": probabilities don't sumup to 1"
-      forM_ (rl_transitions pr s a) $ \(p, (r, s')) -> do
+      forM_ (rl_transitions pr s a) $ \(p, s') -> do
         when (not $ Set.member s' (rl_states pr)) $ do
           fail $ "State " ++ show s ++ ", action " ++ show a ++ ": lead to invalid state " ++ show s'
 

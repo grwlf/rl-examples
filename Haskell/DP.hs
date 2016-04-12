@@ -84,9 +84,9 @@ policy_eval pr p EvalOpts{..} v = do
         v's <- do
           sum (rlp_action p pr s) $ \(fromRational -> pa, a) -> do
             (pa*) <$> do
-              sum (rl_transitions pr s a) $ \(fromRational -> p, (r, s')) -> do
+              sum (rl_transitions pr s a) $ \(fromRational -> p, s') -> do
                 v_s' <- uses es_v (!s')
-                pure $ p * (r + eo_gamma * (v_s'))
+                pure $ p * ((rl_reward pr s a s') + eo_gamma * (v_s'))
 
         es_v' %= (Map.insert s v's)
         es_delta %= (`max`(abs (v's - v_s)))
@@ -102,8 +102,8 @@ policy_eval pr p EvalOpts{..} v = do
 
 policy_action_value pr s a EvalOpts{..} StateVal{..} =
   List.sum $
-  flip map (Set.toList $ rl_transitions pr s a) $ \(fromRational -> p, (r, s')) ->
-    p * (r + eo_gamma * (v_map ! s'))
+  flip map (Set.toList $ rl_transitions pr s a) $ \(fromRational -> p, s') ->
+    p * ((rl_reward pr s a s') + eo_gamma * (v_map ! s'))
 
 policy_improve :: forall p pr s a m . (RLProblem pr s a, MonadIO m, Ord a)
   => pr -> EvalOpts s a -> StateVal s -> m (GenericPolicy s a)

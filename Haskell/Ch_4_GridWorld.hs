@@ -56,29 +56,32 @@ data GW = GW {
 
 gw = GW (4,4)
 
-move :: GW -> Point -> Action -> (Reward, Point)
-move (GW (sx,sy)) (x,y) a =
-  let
-    inbound (x',y') = x' >= 0 && x' < sx && y' >= 0 && y' < sy
-    check def (r,perm) = if inbound perm then (r,perm) else def
-  in
-  if inbound (x,y) then
-    check (-1, (x,y)) (-1,
-      case a of
-         L -> (x-1,y)
-         R -> (x+1,y)
-         U -> (x,y-1)
-         D -> (x,y+1))
-  else
-    error $ "Start state is out of bounds: " ++ show (x,y)
-
 instance RLProblem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
+
   rl_actions p@(GW (sx,sy)) s@(x,y) =
     case s == (0,0) || s == (sx-1,sy-1) of
       True -> Set.empty
       False -> Set.fromList actions
-  rl_transitions p@GW{..} s@(x,y) a = Set.fromList [(1%1, move p s a)]
+
+  rl_transitions (GW (sx,sy)) (x,y) a =
+    let
+      check (x',y') =
+        if x' >= 0 && x' < sx && y' >= 0 && y' < sy then
+          (x',y')
+        else
+          (x,y)
+    in
+    Set.fromList [(1%1,
+        case a of
+           L -> check (x-1,y)
+           R -> check (x+1,y)
+           U -> check (x,y-1)
+           D -> check (x,y+1)
+    )]
+
+  rl_reward (GW (sx,sy)) s a s' = -1
+
 
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)

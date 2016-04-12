@@ -35,6 +35,7 @@ data Gambler = Gambler {
   }
   deriving(Show, Eq, Ord)
 
+
 instance RLProblem Game Gambler Bet where
 
   rl_states Game{..} =
@@ -50,26 +51,16 @@ instance RLProblem Game Gambler Bet where
       Set.fromList [Bet x | x <- [1..border]]
 
   rl_transitions Game{..} Gambler{..} Bet{..} =
-    let
+      Set.fromList [
+          (6%10, Gambler (g_pocket - bet_amount))
+        , (4%10, Gambler (g_pocket + bet_amount))]
 
-      reward pocket =
-        if pocket >= game_win_score then
-          1
-        else
-          if pocket <= 0 then
-            0
-          else
-            0
+  rl_reward Game{..} _ _ Gambler{..} =
+      if g_pocket >= game_win_score then
+        1
+      else
+        0
 
-      assign pocket' = (reward pocket', Gambler (game_win_score `min` pocket'))
-
-    in
-    if g_pocket >= game_win_score || g_pocket <= 0 then
-        Set.empty
-    else
-        Set.fromList [
-            (6%10, assign (g_pocket - bet_amount))
-          , (4%10, assign (g_pocket + bet_amount))]
 
 example_4_3 :: IO ()
 example_4_3 =
