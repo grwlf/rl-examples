@@ -30,6 +30,8 @@ import Data.Foldable
 import Text.Printf
 import Debug.Trace
 
+import Types as RL
+
 {-
   ____ _
  / ___| | __ _ ___ ___  ___  ___
@@ -38,20 +40,9 @@ import Debug.Trace
  \____|_|\__,_|___/___/\___||___/
 -}
 
-debug :: (MonadIO m) => String -> m ()
-debug = liftIO . putStrLn
-
-type Probability = Rational
-type Reward = Rational
-
-data StateVal s = StateVal {
-    v_map :: Map s Rational
-  } deriving(Show)
-
 zero_sate_values :: forall pr s a m . (DP_Problem pr s a)
   => pr -> StateVal s
 zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states pr)
-
 
 -- FIXME: Convert to fold-like style
 class (Ord s) => DP_Problem pr s a | pr -> s , pr -> a where
@@ -81,10 +72,6 @@ invariant1 pr = do
 
 policy_eq :: (Eq a, DP_Policy p1 pr s a, DP_Policy p2 pr s a) => pr -> p1 -> p2 -> Bool
 policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
-
-data GenericPolicy s a = GenericPolicy {
-  gp_actions :: Map s (Set (Probability,a))
-  } deriving(Eq,Ord, Show)
 
 instance (DP_Problem p s a) => DP_Policy (GenericPolicy s a) p s a where
   rlp_action GenericPolicy{..} _ s = gp_actions ! s

@@ -16,7 +16,8 @@ import qualified Data.Set as Set
 import Data.Ratio
 import Text.Printf
 
-import DP as TE
+import Types as RL
+import DP as RL
 
 {-
   ____      _     _                    _     _
