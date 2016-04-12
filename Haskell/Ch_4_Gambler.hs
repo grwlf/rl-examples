@@ -17,7 +17,8 @@ import Data.Ratio
 import Text.Printf
 import Debug.Trace
 
-import DP
+import Types as RL
+import DP as RL
 
 data Bet = Bet {
     bet_amount :: Int

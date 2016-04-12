@@ -16,7 +16,8 @@ import qualified Data.Set as Set
 import Data.Ratio
 import Text.Printf
 
-import DP
+import Types as TE
+import DP as TE
 
 {-
   ____      _     _                    _     _
@@ -27,6 +28,9 @@ import DP
 
  Example 4.1, pg.86
 -}
+
+
+type Point = (Int,Int)
 
 data Action = L | R | U | D
   deriving(Show, Eq, Ord, Enum, Bounded)
@@ -88,7 +92,7 @@ showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
 showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
-      printf "%-2.1f " (v_map ! (x,y))
+      printf "%-2.1f " (fromRational $ v_map ! (x,y) :: Double)
     printf "\n"
 
 showPolicy :: (MonadIO m, RLPolicy p GW Point Action) => GW -> p -> m ()
