@@ -79,37 +79,64 @@ defaultOpts = EvalOpts {
   -- , eo_debug = error "no debug specified"
   }
 
+data Avg num = Avg {
+    avg_curr :: num
+  , avg_n :: Int
+  } deriving(Show)
+
+initialAvg = Avg 0 0
+
+current :: Avg s -> s
+current = undefined
+meld :: Avg s -> s -> Avg s
+meld = undefined
+
+
 data EvalState s = EvalState {
     -- _es_g :: Map s Rational
     _es_g :: Rational
   -- ^ Running return for the current episode
-  , _es_v :: Map s Rational
+  , _es_v :: Map s (Avg Rational)
   , _es_iter :: Int
+  , _es_visited :: Set s
   } deriving(Show)
 
 makeLenses ''EvalState
 
-initialEvalState v = EvalState mempty v 0
+initialEvalState :: (Ord s) => EvalState s
+initialEvalState = EvalState 0 mempty 0 mempty
+
 
 policy_eval :: forall p pr s a m g . (MC_Policy pr s a p, RandomGen g)
-  => EvalOpts s a -> pr -> p -> StateVal s -> g -> (StateVal s, g)
-policy_eval EvalOpts{..} pr p StateVal{..} g =
+  => EvalOpts s a -> pr -> p -> g -> (StateVal s, g)
+policy_eval EvalOpts{..} pr p g =
   flip runRand g $ do
-  StateVal . view es_v <$> do
-  flip execStateT (initialEvalState v_map) $ do
+  StateVal . Map.map current . view es_v <$> do
+  flip execStateT initialEvalState $ do
   loop $ do
+    i <- use es_iter
+    es_iter %= (+1)
+    when (i > eo_max_iter-1) $ do
+      break ()
+
     let rnd = lift . lift . liftRand
     ss <- rnd $ mc_state pr
     es <- rnd $ episode pr ss p
     es_g %= const 0
+    es_visited %= const Set.empty
     forM_ es $ \(s,a,s') -> do
-      case mc_reward pr s a s' of
-        Just r -> es_g %= const r
-        Nothing -> do
-          r <- uses es_v (!s)
-          es_g %= (+r)
-      undefined
-  -- undefined
-  -- let sum l f = List.sum <$> forM (Set.toList l) f
+      fv <- uses es_visited (Set.member s')
+      case fv of
+        False -> return ()
+        True -> do
+          es_visited %= (Set.insert s')
+          case mc_reward pr s a s' of
+            Just r -> do
+              es_g %= const r
+            Nothing -> do
+              g <- use es_g
+              v <- uses es_v (!s)
+              es_g %= (+(current v))
+              es_v %= (Map.insert s (meld v g))
 
 
