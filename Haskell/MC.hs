@@ -43,10 +43,10 @@ class (Ord s) => MC_Problem pr s a | pr -> s , pr -> a where
   mc_is_terminal :: pr -> s -> Bool
 
 class (MC_Problem pr s a) => MC_Policy pr s a p where
-  mcp_action :: (RandomGen g) => pr -> s -> p -> g -> (a,g)
+  mcp_action :: (RandomGen g) => pr -> s -> p -> g -> (Maybe a,g)
 
 -- | Builds an episode which is a list of transitions, terminal transition goes in head
-episode :: (RandomGen g , MC_Policy pr s a p, MonadIO m) => pr -> s -> p -> g -> m ([(s,a,s)],g)
+episode :: (RandomGen g , MC_Policy pr s a p, MonadIO m, Show s, Show a) => pr -> s -> p -> g -> m ([(s,a,s)],g)
 episode pr s p g = do
   flip runRandT g $ do
   snd <$> do
@@ -54,12 +54,14 @@ episode pr s p g = do
   loop $ do
     let rnd = lift . lift . liftRandT
     s <- gets fst
-    a <- rnd $ \g -> return $ mcp_action pr s p g
-    s' <- rnd $ \g -> return $ mc_transition pr s a g
-    liftIO $ putStr "."
-    modify $ const s' *** ((s,a,s'):)
-    when (mc_is_terminal pr s') $ do
-      break ()
+    case (mc_is_terminal pr s) of
+      True -> do
+        break ()
+      False -> do
+        Just a <- rnd $ return . mcp_action pr s p
+        s' <- rnd $ return . mc_transition pr s a
+        -- liftIO $ putStrLn $ ". " ++  show (s,a,s')
+        modify $ const s' *** ((s,a,s'):)
 
 data EvalOpts s a = EvalOpts {
     eo_gamma :: Rational
@@ -123,21 +125,24 @@ policy_eval EvalOpts{..} pr p g = do
       break ()
 
     let rnd = lift . lift . liftRandT
-    ss <- rnd $ \g -> return $ mc_state pr g
-    es <- rnd $ \g -> episode pr ss p g
+    ss <- rnd $ return . mc_state pr
+    es <- rnd $ episode pr ss p
 
-    liftIO $ putStrLn $ "Episode " ++ show es
+    -- liftIO $ putStrLn $ "Episode " ++ show es
     es_g %= const 0
     es_visited %= const Set.empty
     forM_ es $ \(s,a,s') -> do
-      fv <- uses es_visited (Set.member s')
+      when (mc_is_terminal pr s) $ do
+        liftIO $ putStrLn $ "Terminal!"
+
+      fv <- uses es_visited (Set.member s)
       case fv of
-        False -> do
+        True -> do
           {- State s is already visited -}
           return ()
-        True -> do
+        False -> do
           {- First visit of state s for given episode -}
-          es_visited %= (Set.insert s')
+          es_visited %= (Set.insert s)
           es_g %= (+(mc_reward pr s a s'))
           g <- use es_g
           mv <- uses es_v (Map.lookup s)

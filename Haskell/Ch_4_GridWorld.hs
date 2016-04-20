@@ -38,9 +38,6 @@ type Point = (Int,Int)
 data Action = L | R | U | D
   deriving(Show, Eq, Ord, Enum, Bounded)
 
-actions :: [Action]
-actions = [minBound .. maxBound]
-
 showAction :: Action -> String
 showAction a =
   case a of
@@ -65,7 +62,7 @@ instance DP_Problem GW (Int,Int) Action where
   rl_actions p@(GW (sx,sy)) s@(x,y) =
     case s == (0,0) || s == (sx-1,sy-1) of
       True -> Set.empty
-      False -> Set.fromList actions
+      False -> Set.fromList [minBound..maxBound]
 
   rl_transitions (GW (sx,sy)) (x,y) a =
     let
@@ -98,7 +95,11 @@ showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
 showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
-      printf "%-2.1f " (fromRational $ v_map ! (x,y) :: Double)
+      case Map.lookup (x,y) v_map of
+        Just x -> do
+          printf "%-2.1f " (fromRational $ x :: Double)
+        Nothing -> do
+          printf "? "
     printf "\n"
 
 showPolicy :: (MonadIO m, DP_Policy p GW Point Action) => GW -> p -> m ()
@@ -127,14 +128,14 @@ example_4_1 =
 instance MC_Problem GW (Int,Int) Action where
   mc_state p@(GW (sx,sy)) g =
     flip runRand g $ do
-      x <- getRandomR (0,sx)
-      y <- getRandomR (0,sy)
+      x <- getRandomR (0,sx-1)
+      y <- getRandomR (0,sy-1)
       return (x,y)
 
-  mc_actions pr@(GW (sx,sy)) s@(x,y) =
+  mc_actions pr s =
     case mc_is_terminal pr s of
       True -> Set.empty
-      False -> Set.fromList actions
+      False -> Set.fromList [minBound .. maxBound]
 
   mc_transition (GW (sx,sy)) (x,y) a g =
     let
@@ -152,14 +153,19 @@ instance MC_Problem GW (Int,Int) Action where
 
   mc_reward (GW (sx,sy)) s a s' = -1
 
-  mc_is_terminal (GW (sx,sy)) s = s == (0,0) || s == (sx-1,sy-1)
+  mc_is_terminal (GW (sx,sy)) s = (s == (0,0)) || (s == (sx-1,sy-1))
 
 
 instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
-  mcp_action pr s p g = flip runRand g $ uniform [minBound .. maxBound]
+  mcp_action pr s p g =
+    case mc_is_terminal pr s of
+      True -> (Nothing, g)
+      False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
 
 
-test_hang :: (MonadIO m) => m (StateVal (Int, Int), StdGen)
-test_hang = MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 18  } gw GWRandomPolicy (mkStdGen 0)
+example_4_1_mc :: (MonadIO m) => m ()
+example_4_1_mc = do
+  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 1000} gw GWRandomPolicy (mkStdGen 0)
+  showStateVal gw v
 
