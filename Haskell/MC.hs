@@ -39,7 +39,7 @@ class (Ord s) => MC_Problem pr s a | pr -> s , pr -> a where
   mc_state :: pr -> g -> (s,g)
   mc_actions :: pr -> s -> Set a
   mc_transition :: (RandomGen g) => pr -> s -> a -> g -> (s,g)
-  mc_reward :: pr -> s -> a -> s -> Maybe Reward
+  mc_reward :: pr -> s -> a -> s -> Reward
   mc_is_terminal :: pr -> s -> Bool
 
 class (MC_Problem pr s a) => MC_Policy pr s a p where
@@ -135,18 +135,15 @@ policy_eval EvalOpts{..} pr p g =
         True -> do
           {- First visit of state s for given episode -}
           es_visited %= (Set.insert s')
-          case mc_reward pr s a s' of
-            Just r -> do
-              es_g %= const r
+          es_g %= (+(mc_reward pr s a s'))
+          g <- use es_g
+          mv <- uses es_v (Map.lookup s)
+          case mv of
+            Just v -> do
+              {- Melding new esitimates with all the previous -}
+              es_v %= (Map.insert s (meld v g))
             Nothing -> do
-              g <- use es_g
-              mv <- uses es_v (Map.lookup s)
-              case mv of
-                Just v -> do
-                  es_g %= (+(current v))
-                  es_v %= (Map.insert s (meld v g))
-                Nothing -> do
-                  {- Act as V(s) is 0. Initialize it with current reward -}
-                  es_v %= (Map.insert s (initialAvg g))
+              {- Act as V(s) is 0. Initialize it with current reward -}
+              es_v %= (Map.insert s (initialAvg g))
 
 
