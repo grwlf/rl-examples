@@ -81,15 +81,17 @@ defaultOpts = EvalOpts {
 
 data Avg num = Avg {
     avg_curr :: num
-  , avg_n :: Int
+  , avg_n :: num
   } deriving(Show)
 
-initialAvg = Avg 0 0
+initialAvg :: (Fractional num) => num -> Avg num
+initialAvg num = Avg num 1
 
-current :: Avg s -> s
-current = undefined
-meld :: Avg s -> s -> Avg s
-meld = undefined
+current :: (Fractional s) => Avg s -> s
+current (Avg c n) = c
+
+meld :: forall s . (Fractional s) => Avg s -> s -> Avg s
+meld (Avg c n) s = Avg ((c*(n/(n+1))) + (s/(n + 1))) (n + 1)
 
 
 data EvalState s = EvalState {
@@ -127,16 +129,24 @@ policy_eval EvalOpts{..} pr p g =
     forM_ es $ \(s,a,s') -> do
       fv <- uses es_visited (Set.member s')
       case fv of
-        False -> return ()
+        False -> do
+          {- State s is already visited -}
+          return ()
         True -> do
+          {- First visit of state s for given episode -}
           es_visited %= (Set.insert s')
           case mc_reward pr s a s' of
             Just r -> do
               es_g %= const r
             Nothing -> do
               g <- use es_g
-              v <- uses es_v (!s)
-              es_g %= (+(current v))
-              es_v %= (Map.insert s (meld v g))
+              mv <- uses es_v (Map.lookup s)
+              case mv of
+                Just v -> do
+                  es_g %= (+(current v))
+                  es_v %= (Map.insert s (meld v g))
+                Nothing -> do
+                  {- Act as V(s) is 0. Initialize it with current reward -}
+                  es_v %= (Map.insert s (initialAvg g))
 
 
