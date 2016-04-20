@@ -36,7 +36,7 @@ import Text.Printf
 import Types as RL
 
 class (Ord s) => MC_Problem pr s a | pr -> s , pr -> a where
-  mc_state :: pr -> g -> (s,g)
+  mc_state :: (RandomGen g) => pr -> g -> (s,g)
   mc_actions :: pr -> s -> Set a
   mc_transition :: (RandomGen g) => pr -> s -> a -> g -> (s,g)
   mc_reward :: pr -> s -> a -> s -> Reward

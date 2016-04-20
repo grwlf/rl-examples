@@ -8,6 +8,7 @@ module Ch_4_GridWorld where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans
+import Control.Monad.Random
 import qualified Data.List as List
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
@@ -18,6 +19,8 @@ import Text.Printf
 
 import Types as RL
 import DP as RL
+import MC(MC_Problem(..), MC_Policy(..))
+import qualified MC as MC
 
 {-
   ____      _     _                    _     _
@@ -116,3 +119,47 @@ example_4_1 =
   p' <- policy_improve gw opts v
   showPolicy gw p'
 
+
+
+
+
+
+
+
+
+
+
+
+instance MC_Problem GW (Int,Int) Action where
+  mc_state p@(GW (sx,sy)) g =
+    flip runRand g $ do
+      x <- getRandomR (0,sx)
+      y <- getRandomR (0,sy)
+      return (x,y)
+
+  mc_actions pr@(GW (sx,sy)) s@(x,y) =
+    case mc_is_terminal pr s of
+      True -> Set.empty
+      False -> Set.fromList actions
+
+  mc_transition (GW (sx,sy)) (x,y) a g =
+    let
+      check (x',y') =
+        if x' >= 0 && x' < sx && y' >= 0 && y' < sy then
+          (x',y')
+        else
+          (x,y)
+    in
+    (case a of
+       L -> check (x-1,y)
+       R -> check (x+1,y)
+       U -> check (x,y-1)
+       D -> check (x,y+1), g)
+
+  mc_reward (GW (sx,sy)) s a s' = -1
+
+  mc_is_terminal (GW (sx,sy)) s = s == (0,0) || s == (sx-1,sy-1)
+
+
+instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
+  mcp_action pr s p g = flip runRand g $ uniform [minBound .. maxBound]
