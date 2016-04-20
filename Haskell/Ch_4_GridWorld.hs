@@ -124,12 +124,6 @@ example_4_1 =
 
 
 
-
-
-
-
-
-
 instance MC_Problem GW (Int,Int) Action where
   mc_state p@(GW (sx,sy)) g =
     flip runRand g $ do
@@ -163,3 +157,9 @@ instance MC_Problem GW (Int,Int) Action where
 
 instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
   mcp_action pr s p g = flip runRand g $ uniform [minBound .. maxBound]
+
+
+
+test_hang :: (MonadIO m) => m (StateVal (Int, Int), StdGen)
+test_hang = MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 18  } gw GWRandomPolicy (mkStdGen 0)
+

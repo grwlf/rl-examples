@@ -46,16 +46,17 @@ class (MC_Problem pr s a) => MC_Policy pr s a p where
   mcp_action :: (RandomGen g) => pr -> s -> p -> g -> (a,g)
 
 -- | Builds an episode which is a list of transitions, terminal transition goes in head
-episode :: (RandomGen g , MC_Policy pr s a p) => pr -> s -> p -> g -> ([(s,a,s)],g)
-episode pr s p g =
-  flip runRand g $ do
+episode :: (RandomGen g , MC_Policy pr s a p, MonadIO m) => pr -> s -> p -> g -> m ([(s,a,s)],g)
+episode pr s p g = do
+  flip runRandT g $ do
   snd <$> do
   flip execStateT (s,[]) $ do
   loop $ do
-    let rnd = lift . lift . liftRand
+    let rnd = lift . lift . liftRandT
     s <- gets fst
-    a <- rnd $ mcp_action pr s p
-    s' <- rnd $ mc_transition pr s a
+    a <- rnd $ \g -> return $ mcp_action pr s p g
+    s' <- rnd $ \g -> return $ mc_transition pr s a g
+    liftIO $ putStr "."
     modify $ const s' *** ((s,a,s'):)
     when (mc_is_terminal pr s') $ do
       break ()
@@ -109,10 +110,10 @@ initialEvalState :: (Ord s) => EvalState s
 initialEvalState = EvalState 0 mempty 0 mempty
 
 
-policy_eval :: forall p pr s a m g . (MC_Policy pr s a p, RandomGen g)
-  => EvalOpts s a -> pr -> p -> g -> (StateVal s, g)
-policy_eval EvalOpts{..} pr p g =
-  flip runRand g $ do
+policy_eval :: forall p pr s a m g . (MC_Policy pr s a p, RandomGen g, MonadIO m, Show s, Show a)
+  => EvalOpts s a -> pr -> p -> g -> m (StateVal s, g)
+policy_eval EvalOpts{..} pr p g = do
+  flip runRandT g $ do
   StateVal . Map.map current . view es_v <$> do
   flip execStateT initialEvalState $ do
   loop $ do
@@ -121,9 +122,11 @@ policy_eval EvalOpts{..} pr p g =
     when (i > eo_max_iter-1) $ do
       break ()
 
-    let rnd = lift . lift . liftRand
-    ss <- rnd $ mc_state pr
-    es <- rnd $ episode pr ss p
+    let rnd = lift . lift . liftRandT
+    ss <- rnd $ \g -> return $ mc_state pr g
+    es <- rnd $ \g -> episode pr ss p g
+
+    liftIO $ putStrLn $ "Episode " ++ show es
     es_g %= const 0
     es_visited %= const Set.empty
     forM_ es $ \(s,a,s') -> do
