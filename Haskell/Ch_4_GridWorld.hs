@@ -99,7 +99,7 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
         Just x -> do
           printf "%-2.1f " (fromRational $ x :: Double)
         Nothing -> do
-          printf "? "
+          printf "  ?   "
     printf "\n"
 
 showPolicy :: (MonadIO m, DP_Policy p GW Point Action) => GW -> p -> m ()
@@ -166,6 +166,6 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
 
 example_4_1_mc :: (MonadIO m) => m ()
 example_4_1_mc = do
-  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 1000} gw GWRandomPolicy (mkStdGen 0)
+  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 10000} gw GWRandomPolicy (mkStdGen 0)
   showStateVal gw v
 
