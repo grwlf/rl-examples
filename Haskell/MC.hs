@@ -25,7 +25,7 @@ import Data.List hiding (break)
 import qualified Data.List as List
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
+import Data.Set (Set,member)
 import qualified Data.Set as Set
 import Debug.Trace
 import Data.Foldable
@@ -34,6 +34,16 @@ import System.Random
 import Text.Printf
 
 import Types as RL
+import DP (DP_Problem(..), DP_Policy(..))
+import qualified DP as DP
+
+{-
+  ____ _
+ / ___| | __ _ ___ ___  ___  ___
+| |   | |/ _` / __/ __|/ _ \/ __|
+| |___| | (_| \__ \__ \  __/\__ \
+ \____|_|\__,_|___/___/\___||___/
+-}
 
 class (Ord s) => MC_Problem pr s a | pr -> s , pr -> a where
   mc_state :: (RandomGen g) => pr -> g -> (s,g)
@@ -44,6 +54,33 @@ class (Ord s) => MC_Problem pr s a | pr -> s , pr -> a where
 
 class (MC_Problem pr s a) => MC_Policy pr s a p where
   mcp_action :: (RandomGen g) => pr -> s -> p -> g -> (Maybe a,g)
+
+data MC pr s a = MC pr
+  deriving(Show)
+
+instance DP_Problem pr s a => MC_Problem (MC pr s a) s a where
+  mc_state (MC pr) = runRand $ uniform (Set.toList (rl_states pr))
+  mc_actions (MC pr) = rl_actions pr
+  mc_transition (MC pr) s a = runRand $ fromList $ flip map (Set.toList $ rl_transitions pr s a) $ \ (p,s') -> (s',p)
+  mc_reward (MC pr) = rl_reward pr
+  mc_is_terminal (MC pr) s = member s (rl_terminal_states pr)
+
+instance (DP_Problem pr s a, DP_Policy p pr s a) => MC_Policy (MC pr s a) s a p where
+  mcp_action (MC pr) s p g =
+    case member s (rl_terminal_states pr) of
+      True -> (Nothing, g)
+      False -> flip runRand g $ fromList $ flip map (Set.toList $ rlp_action p pr s) $ \(p,a) -> (Just a,p)
+
+
+{-
+    _    _
+   / \  | | __ _
+  / _ \ | |/ _` |
+ / ___ \| | (_| |
+/_/   \_\_|\__, |
+           |___/
+-}
+
 
 newtype Episode s a = Episode {
   ep_list :: [(s,a,s)]

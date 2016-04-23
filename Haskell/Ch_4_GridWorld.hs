@@ -19,7 +19,7 @@ import Text.Printf
 
 import Types as RL
 import DP as RL
-import MC(MC_Problem(..), MC_Policy(..))
+import MC(MC_Problem(..), MC_Policy(..), MC(..))
 import qualified MC as MC
 
 {-
@@ -156,17 +156,21 @@ instance MC_Problem GW (Int,Int) Action where
 
   mc_is_terminal (GW (sx,sy)) s = (s == (0,0)) || (s == (sx-1,sy-1))
 
-
 instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
   mcp_action pr s p g =
     case mc_is_terminal pr s of
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
-
-
 example_4_1_mc :: (MonadIO m) => m ()
 example_4_1_mc = do
-  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 10000} gw GWRandomPolicy (mkStdGen 0)
+  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 3000} gw GWRandomPolicy (mkStdGen 0)
+  showStateVal gw v
+
+
+-- FIXME: why are results differ slightly from @example_4_1_mc@ ?
+example_4_1_mc2 :: (MonadIO m) => m ()
+example_4_1_mc2 = do
+  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 3000} (MC gw) GWRandomPolicy (mkStdGen 0)
   showStateVal gw v
 
