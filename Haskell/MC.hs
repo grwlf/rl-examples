@@ -115,9 +115,6 @@ meld (Avg c n) s = Avg ((c*(n/(n+1))) + (s/(n + 1))) (n + 1)
 
 
 data EvalState s = EvalState {
-    -- _es_g :: Map s Rational
-    -- _es_g :: Rational
-  -- ^ Running return for the current episode
     _es_v :: Map s (Avg Rational)
   , _es_iter :: Int
   } deriving(Show)
@@ -128,6 +125,7 @@ initialEvalState :: (Ord s) => EvalState s
 initialEvalState = EvalState mempty 0
 
 
+-- Monte carlo policy evaluation, Figure 5.1. pg 109
 policy_eval :: forall p pr s a m g . (MC_Policy pr s a p, RandomGen g, MonadIO m, Show s, Show a)
   => EvalOpts s a -> pr -> p -> g -> m (StateVal s, g)
 policy_eval EvalOpts{..} pr p g = do

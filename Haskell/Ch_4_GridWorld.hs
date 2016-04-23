@@ -59,8 +59,8 @@ gw = GW (4,4)
 instance DP_Problem GW (Int,Int) Action where
   rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
 
-  rl_actions p@(GW (sx,sy)) s@(x,y) =
-    case s == (0,0) || s == (sx-1,sy-1) of
+  rl_actions pr s =
+    case Set.member s (rl_terminal_states pr) of
       True -> Set.empty
       False -> Set.fromList [minBound..maxBound]
 
@@ -82,6 +82,7 @@ instance DP_Problem GW (Int,Int) Action where
 
   rl_reward (GW (sx,sy)) s a s' = -1
 
+  rl_terminal_states (GW (sx,sy)) = Set.fromList [(0,0), (sx-1,sy-1)]
 
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)

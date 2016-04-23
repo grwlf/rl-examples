@@ -23,7 +23,7 @@ import Data.List hiding (break)
 import qualified Data.List as List
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
+import Data.Set (Set, member)
 import qualified Data.Set as Set
 import Prelude hiding(break)
 import Data.Foldable
@@ -44,31 +44,84 @@ zero_sate_values :: forall pr s a m . (DP_Problem pr s a)
   => pr -> StateVal s
 zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList $ rl_states pr)
 
--- FIXME: Convert to fold-like style
+-- FIXME: Convert to fold-like style eventially
 class (Ord s) => DP_Problem pr s a | pr -> s , pr -> a where
   rl_states :: pr -> Set s
   rl_actions :: pr -> s -> Set a
   rl_transitions :: pr -> s -> a -> Set (Probability, s)
   rl_reward :: pr -> s -> a -> s -> Reward
-
-invariant_prob :: forall pr s a . (DP_Problem pr s a) => pr -> s -> a -> Bool
-invariant_prob pr s a = 1%1 == List.sum (map fst (Set.toList $ rl_transitions pr s a))
+  rl_terminal_states :: pr -> Set s
 
 class (DP_Problem pr s a) => DP_Policy p pr s a where
   rlp_action :: p -> pr -> s -> Set (Probability, a)
 
-invariant1 :: (Monad m, DP_Problem pr s a, Show s, Show a, Show pr) => pr -> m ()
-invariant1 pr = do
-  forM_ (rl_states pr) $ \s -> do
-    forM_ (rl_actions pr s) $ \a -> do
-      case Set.toList $ rl_transitions pr s a of
-        [] -> return ()
-        xs -> do
-          when (not $ invariant_prob pr s a) $ do
-            fail $ "State " ++ show s ++ ", action " ++ show a ++ ": probabilities don't sumup to 1"
-      forM_ (rl_transitions pr s a) $ \(p, s') -> do
-        when (not $ Set.member s' (rl_states pr)) $ do
-          fail $ "State " ++ show s ++ ", action " ++ show a ++ ": lead to invalid state " ++ show s'
+-- | For given state, probabilities for all possible action should sum up to 1
+invariant_probable_actions :: forall pr s a . (DP_Problem pr s a, Show s, Show a) => pr -> Bool
+invariant_probable_actions pr =
+  flip all (rl_states pr) $ \s ->
+    flip all (rl_actions pr s) $ \a ->
+      case sum (map fst (Set.toList (rl_transitions pr s a))) of
+        1 -> True
+        x -> error $ "Total probability of state " ++ show s ++ " action " ++ show a ++ " sum up to " ++ show x
+
+-- | No action leads to unlisted state
+invariant_closed_transition :: forall pr s a . (DP_Problem pr s a, Show s, Show a) => pr -> Bool
+invariant_closed_transition pr =
+  flip all (rl_states pr) $ \s ->
+    flip all (rl_actions pr s) $ \a ->
+      flip all (rl_transitions pr s a) $ \(p,s') ->
+        case (Set.member s' (rl_states pr)) of
+          True -> True
+          False -> error $ "State " ++ show s ++ ", action " ++ show a ++ " lead to invalid state " ++ show s'
+
+-- | Terminal states are dead ends and non-terminal states are not
+invariant_no_dead_states :: forall pr s a . (DP_Problem pr s a, Show s, Show a) => pr -> Bool
+invariant_no_dead_states pr =
+  flip all (rl_states pr) $ \s ->
+    case (member s (rl_terminal_states pr), Set.null (rl_actions pr s)) of
+      (True,True) -> True
+      (True,False) -> error $ "Terminal state " ++ show s ++ " is not dead end"
+      (False,False) -> True
+      (False,True) -> error $ "State " ++ show s ++ " is dead end"
+
+-- Terminals are valid states
+invariant_terminal :: forall pr s a . (DP_Problem pr s a, Show s, Show a) => pr -> Bool
+invariant_terminal pr =
+  flip all (rl_terminal_states pr) $ \st ->
+    case Set.member st (rl_states pr) of
+      True -> True
+      False -> error $ "State " ++ show st ++ " is not a valid state"
+
+-- Policy returns valid actions
+invariant_policy_actions :: forall p pr s a . (DP_Policy p pr s a, Ord a, Show s, Show a) => p -> pr -> Bool
+invariant_policy_actions p pr =
+  flip all (rl_states pr) $ \s ->
+    flip all (rlp_action p pr s) $ \(prob, a) ->
+      case Set.member a (rl_actions pr s) of
+        True -> True
+        False -> error $ "Policy from state " ++ show s ++ " leads to invalid action " ++ show a
+
+-- Policy return valid probabilities
+invariant_policy_prob :: forall p pr s a . (DP_Policy p pr s a, Ord a, Show s, Show a) => p -> pr -> Bool
+invariant_policy_prob p pr =
+  flip all (rl_states pr) $ \s ->
+    let
+      as = Set.toList (rlp_action p pr s)
+    in
+    case sum $ map fst as of
+      1 -> True
+      0 | null as -> True
+      x -> error $ "Policy state " ++ show s ++ " probabilities sum up to " ++ show x
+
+invariant :: forall pr s a . (DP_Problem pr s a, Show s, Show a, Ord a) => pr -> Bool
+invariant pr = all ($ pr) [
+    invariant_probable_actions
+  , invariant_closed_transition
+  , invariant_terminal
+  , invariant_policy_actions (uniformGenericPolicy pr)
+  , invariant_policy_prob (uniformGenericPolicy pr)
+  , invariant_no_dead_states
+  ]
 
 policy_eq :: (Eq a, DP_Policy p1 pr s a, DP_Policy p2 pr s a) => pr -> p1 -> p2 -> Bool
 policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
@@ -78,11 +131,11 @@ instance (DP_Problem p s a) => DP_Policy (GenericPolicy s a) p s a where
 
 uniformGenericPolicy :: (Ord a, DP_Problem pr s a) => pr -> GenericPolicy s a
 uniformGenericPolicy pr = GenericPolicy{..} where
-  gp_actions = Map.fromList $ map (\s ->
+  gp_actions = Map.fromList $ flip map (Set.toList (rl_states pr)) $ \s ->
     let
       as = rl_actions pr s
     in
-    (s, Set.map (\a -> (1%(toInteger $ length as),a)) as)) (Set.toList $ rl_states pr)
+    (s, Set.map (\a -> (1%(toInteger $ length as),a)) as)
 
 
 

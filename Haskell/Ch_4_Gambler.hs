@@ -61,6 +61,8 @@ instance DP_Problem Game Gambler Bet where
       else
         0
 
+  rl_terminal_states Game{..} = Set.fromList [ Gambler 0, Gambler game_win_score ]
+
 
 example_4_3 :: IO ()
 example_4_3 =
