@@ -21,6 +21,7 @@ import Control.Monad.Random
 import Control.Break
 import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3)
 import Data.Ratio
+import Data.Tuple
 import Data.List hiding (break)
 import qualified Data.List as List
 import Data.Map.Strict (Map, (!))
@@ -61,7 +62,7 @@ data MC pr s a = MC pr
 instance DP_Problem pr s a => MC_Problem (MC pr s a) s a where
   mc_state (MC pr) = runRand $ uniform (Set.toList (rl_states pr))
   mc_actions (MC pr) = rl_actions pr
-  mc_transition (MC pr) s a = runRand $ fromList $ flip map (Set.toList $ rl_transitions pr s a) $ \ (p,s') -> (s',p)
+  mc_transition (MC pr) s a = runRand $ fromList $ map swap (Set.toList $ rl_transitions pr s a)
   mc_reward (MC pr) = rl_reward pr
   mc_is_terminal (MC pr) s = member s (rl_terminal_states pr)
 
