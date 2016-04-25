@@ -12,27 +12,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 module MC where
 
-import Control.Arrow ((&&&),(***))
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.State.Strict
-import Control.Monad.Random
-import Control.Break
-import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3)
-import Data.Ratio
-import Data.Tuple
-import Data.List hiding (break)
+import Imports
 import qualified Data.List as List
-import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set,member)
 import qualified Data.Set as Set
-import Debug.Trace
-import Data.Foldable
 import Prelude hiding(break)
-import System.Random
-import Text.Printf
 
 import Types as RL
 import DP (DP_Problem(..), DP_Policy(..))

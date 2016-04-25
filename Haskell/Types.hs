@@ -17,6 +17,7 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
+import Graphics.EasyPlot
 
 debug :: (MonadIO m) => String -> m ()
 debug = liftIO . putStrLn

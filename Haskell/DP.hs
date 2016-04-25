@@ -12,23 +12,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 module DP where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.State.Strict
-import Control.Break
-import Control.Lens (makeLenses, (%=), view, use, uses)
-import Data.Ratio
-import Data.List hiding (break)
+import Imports
 import qualified Data.List as List
-import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set, member)
 import qualified Data.Set as Set
 import Prelude hiding(break)
-import Data.Foldable
-import Text.Printf
-import Debug.Trace
 
 import Types as RL
 
