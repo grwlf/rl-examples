@@ -18,6 +18,8 @@ module Imports (
   , module Prelude
   , module System.Random
   , module Text.Printf
+  , module Graphics.TinyPlot
+  , module Text.Heredoc
 )
 
 where
@@ -43,3 +45,7 @@ import Data.Foldable
 import Prelude hiding(break)
 import System.Random
 import Text.Printf
+import Graphics.TinyPlot
+import Text.Heredoc
+
+

@@ -17,7 +17,6 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
-import Graphics.EasyPlot
 
 debug :: (MonadIO m) => String -> m ()
 debug = liftIO . putStrLn
@@ -32,9 +31,6 @@ data StateVal s = StateVal {
 data GenericPolicy s a = GenericPolicy {
     gp_actions :: Map s (Set (Probability,a))
   } deriving(Eq,Ord, Show)
-
-
-
 
 data Histogram a = Histogram {
     hist_map :: Map a Integer

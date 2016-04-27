@@ -6,6 +6,7 @@ module Graphics.TinyPlot where
 import Control.Applicative
 import Control.Concurrent
 import Control.Monad
+import Control.Monad.Trans
 import Data.Char
 import System.IO
 import System.Process
@@ -19,10 +20,10 @@ data PlotData = PlotData {
   } deriving(Show)
 
 newData :: FilePath -> IO PlotData
-newData filename = PlotData filename <$> openFile filename WriteMode
+newData ((-<.> ".dat") -> filename) = PlotData filename <$> openFile filename WriteMode
 
-push :: PlotData -> Double -> Double -> IO ()
-push PlotData{..} x y = do
+push :: (MonadIO m) => PlotData -> Double -> Double -> m ()
+push PlotData{..} x y = liftIO $ do
   hPutStrLn ps_handle (show x ++ "\t" ++ show y) >> hFlush ps_handle
 
 dat :: PlotData -> String
@@ -34,9 +35,9 @@ data Plot = Plot {
 }
 
 spawnPlot :: String -> String -> IO Plot
-spawnPlot name plot = do
+spawnPlot ((-<.> ".gnuplot") -> name) plot =
   Plot <$> do
-    writeFile (name -<.> ".gnuplot") plot *> spawnProcess "gnuplot" [name]
+    writeFile name plot *> spawnProcess "gnuplot" [name]
 
 
 test = do
@@ -45,9 +46,12 @@ test = do
   spawnPlot "plot1" [heredoc|
     set xrange [0:20]
     set yrange [0:400]
-    plot ${dat d} using 1:2 with lines
-    pause 1
-    reread
+    done = 0
+    bind all 'd' 'done = 1'
+    while(!done) {
+      plot ${dat d} using 1:2 with lines
+      pause 1
+    }
   |]
 
   forM_ [0..100] $ \i@(fromInteger -> r) -> do

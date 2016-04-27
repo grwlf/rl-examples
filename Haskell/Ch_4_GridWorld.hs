@@ -2,20 +2,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Ch_4_GridWorld where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Random
+import Imports
 import qualified Data.List as List
-import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Ratio
-import Text.Printf
 
 import Types as RL
 import DP as RL
@@ -111,7 +105,7 @@ showPolicy pr@(GW (sx,sy)) p = liftIO $ do
       printf "% 4s " (showActions acts)
     printf "\n"
 
-example_4_1 :: IO ()
+example_4_1 :: IO (StateVal (Int,Int))
 example_4_1 =
   let
     opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
@@ -120,6 +114,7 @@ example_4_1 =
   showStateVal gw v
   p' <- policy_improve gw opts v
   showPolicy gw p'
+  return v
 
 
 
@@ -162,9 +157,32 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
-example_4_1_mc :: (MonadIO m) => m ()
+example_4_1_mc :: IO ()
 example_4_1_mc = do
-  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 3000} gw GWRandomPolicy (mkStdGen 0)
+  d <- newData "mc"
+
+  spawnPlot "plot1" [heredoc|
+    set autoscale xfix
+    done = 0
+    bind all 'd' 'done = 1'
+    while(!done) {
+      plot ${dat d} using 1:2 with lines
+      set output
+      pause 1
+    }
+  |]
+
+  v_dp <- example_4_1
+  let
+    opts = MC.defaultOpts{
+             MC.eo_max_iter = 9000,
+             MC.eo_learnMonitor = Just MC.Monitor{
+               mon_target = v_dp,
+               mon_data = d
+             }
+           }
+
+  (v,_) <- MC.policy_eval opts gw GWRandomPolicy (mkStdGen 0)
   showStateVal gw v
 
 

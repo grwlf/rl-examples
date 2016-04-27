@@ -102,15 +102,28 @@ backtrack_fv pr ep =
       g <- use _2
       _1 %= (Map.insert s g)
 
+
+data Monitor s = Monitor {
+    mon_target :: StateVal s
+  , mon_data :: PlotData
+  } deriving(Show)
+
+monitorNew :: (MonadIO m) => StateVal s -> m (Monitor s)
+monitorNew tgt = liftIO $
+  Monitor tgt <$> do
+    newData "MC"
+
+
 data EvalOpts s a = EvalOpts {
     eo_gamma :: Rational
   -- ^ Forgetness
   -- , eo_etha :: Rational
   -- ^ policy evaluation precision
-  , eo_max_iter :: Int
+  , eo_max_iter :: Integer
   -- ^ policy evaluation iteration limit, [1..maxBound]
   -- , eo_floating_precision :: Double
   -- , eo_debug :: (StateVal s, GenericPolicy s a) -> IO ()
+  , eo_learnMonitor :: Maybe (Monitor s)
   } deriving(Show)
 
 defaultOpts = EvalOpts {
@@ -119,6 +132,7 @@ defaultOpts = EvalOpts {
   , eo_max_iter = 10^3
   -- , eo_floating_precision = 1/10^9
   -- , eo_debug = error "no debug specified"
+  , eo_learnMonitor = Nothing
   }
 
 data Avg num = Avg {
@@ -138,13 +152,18 @@ meld (Avg c n) s = Avg ((c*(n/(n+1))) + (s/(n + 1))) (n + 1)
 
 data EvalState s = EvalState {
     _es_v :: Map s (Avg Rational)
-  , _es_iter :: Int
+  , _es_iter :: Integer
   } deriving(Show)
 
 makeLenses ''EvalState
 
 initialEvalState :: (Ord s) => EvalState s
 initialEvalState = EvalState mempty 0
+
+-- | DIfference between state value estimates
+-- FIXME: handle missing states case
+diffVal :: (Ord s) => StateVal s -> (Map s (Avg Rational)) -> Rational
+diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> a - (current b)) tgt src
 
 
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
@@ -174,5 +193,11 @@ policy_eval EvalOpts{..} pr p g = do
         Nothing -> do
           {- Act as V(s) is 0. Initialize it with current reward -}
           es_v %= (Map.insert s (initialAvg g))
+
+    case eo_learnMonitor of
+      Nothing -> return ()
+      Just Monitor{..} -> do
+        v <- use es_v
+        push mon_data (fromInteger i) (fromRational $ diffVal mon_target v)
 
 
