@@ -123,6 +123,13 @@ CRA meld(CRA cra, double v) {
   return CRA { cra.c + (v - cra.c)/(cra.n+1), cra.n+1};
 }
 
+map<State, double> answer = {
+  {{0,0},0.0}, {{0,1},-14.0}, {{0,2},-20.0}, {{0,3},-22.0},
+  {{1,0},-14.0}, {{1,1},-18.0}, {{1,2},-20.0}, {{1,3},-20.0},
+  {{2,0},-20.0}, {{2,1},-20.0}, {{2,2},-18.0}, {{2,3},-14.0},
+  {{3,0},-22.0}, {{3,1},-20.0}, {{3,2},-14.0}, {{3,3},0.0}
+};
+
 map<State,CRA> eval (GW gw, int count){
   map<State,CRA> v;
   for(int i=0; i<count; i++) {
@@ -135,7 +142,14 @@ map<State,CRA> eval (GW gw, int count){
       }
       v[s.first] = meld(v[s.first], s.second);
     }
+
+    double err = 0;
+    for(auto s:v) {
+      err += answer[s.first] - s.second.c;
+    }
+    cout << i << "\t" << err << endl;
   }
+
   return v;
 }
 
@@ -146,7 +160,7 @@ void showv(GW gw, map<State,CRA> v) {
       if(i == v.end())
         cout << "         " ;
       else
-        cout << i->second.c << " ";
+        cout << i->second.c << "( " << i->second.n << ")" ;
     }
     cout << endl;
   }
@@ -154,7 +168,7 @@ void showv(GW gw, map<State,CRA> v) {
 
 int main() {
   GW gw = {4,4};
-  map<State,CRA> v = eval(gw, 60000);
+  map<State,CRA> v = eval(gw, 100000);
 
   showv(gw, v);
   return 0;
