@@ -81,14 +81,14 @@ episode pr s p g = do
   Episode . snd <$> do
   flip execStateT (s,[]) $ do
   loop $ do
-    let rnd = lift . lift . liftRandT
+    let rnd m = lift $ lift $ liftRandT $ (\g -> return $ m g)
     s <- gets fst
     case (mc_is_terminal pr s) of
       True -> do
         break ()
       False -> do
-        Just a <- rnd $ return . mcp_action pr s p
-        s' <- rnd $ return . mc_transition pr s a
+        Just a <- rnd $ mcp_action pr s p
+        s' <- rnd $ mc_transition pr s a
         -- liftIO $ putStrLn $ ". " ++  show (s,a,s')
         modify $ const s' *** ((s,a,s'):)
 

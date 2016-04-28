@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -141,12 +142,13 @@ instance MC_Problem GW (Int,Int) Action where
           (x',y')
         else
           (x,y)
+      (_::Integer, g') = random g
     in
     (case a of
        L -> check (x-1,y)
        R -> check (x+1,y)
        U -> check (x,y-1)
-       D -> check (x,y+1), g)
+       D -> check (x,y+1), g')
 
   mc_reward (GW (sx,sy)) s a s' = -1
 
@@ -161,6 +163,7 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
 example_4_1_mc :: IO ()
 example_4_1_mc = do
   let max = 20000
+  let g = mkStdGen 33
 
   d1 <- newData "mc1"
   d2 <- newData "mc2"
@@ -190,7 +193,7 @@ example_4_1_mc = do
                }
              }
     in do
-    (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy (mkStdGen 0)
+    (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy g
     showStateVal gw v
 
   t2 <- forkIO $
@@ -203,7 +206,7 @@ example_4_1_mc = do
                }
              }
     in do
-    (v,_) <- MC.policy_eval opts gw GWRandomPolicy (mkStdGen 0)
+    (v,_) <- MC.policy_eval opts gw GWRandomPolicy g
     showStateVal gw v
 
   loop $ do
