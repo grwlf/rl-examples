@@ -140,14 +140,24 @@ data Avg num = Avg {
   , avg_n :: num
   } deriving(Show)
 
-initialAvg :: (Fractional num) => num -> Avg num
-initialAvg num = Avg num 1
+initialAvg :: (Fractional num) => Avg num
+initialAvg = Avg 0 0
 
 current :: (Fractional s) => Avg s -> s
 current (Avg c n) = c
 
 meld :: forall s . (Fractional s) => Avg s -> s -> Avg s
-meld (Avg c n) s = Avg ((c*(n/(n+1))) + (s/(n + 1))) (n + 1)
+meld (Avg c n) s = Avg (c + (s-c)/(n+1)) (n + 1)
+
+-- testAvg :: Double
+testAvg x = do
+  -- fromRational $ do
+  (current *** (\l -> sum l / (fromInteger $ toInteger $ length l))) $ do
+  fst $ flip runRand (mkStdGen 0) $ do
+  flip execStateT (initialAvg :: Avg Double, ([] :: [Double])) $ do
+  forM_ [0..x] $ \i -> do
+    -- r <- getRandomR (1,9)
+    modify $ (flip meld (fromInteger i)) *** (fromInteger i:)
 
 
 data EvalState s = EvalState {
@@ -188,11 +198,11 @@ policy_eval EvalOpts{..} pr p g = do
       mv <- uses es_v (Map.lookup s)
       case mv of
         Just v -> do
-          {- Melding new esitimates with all the previous -}
+          {- Melding new estimates with all the previous ones -}
           es_v %= (Map.insert s (meld v g))
         Nothing -> do
           {- Act as V(s) is 0. Initialize it with current reward -}
-          es_v %= (Map.insert s (initialAvg g))
+          es_v %= (Map.insert s (meld initialAvg g))
 
     case eo_learnMonitor of
       Nothing -> return ()

@@ -15,6 +15,7 @@ import Types as RL
 import DP as RL
 import MC(MC_Problem(..), MC_Policy(..), MC(..))
 import qualified MC as MC
+import Prelude hiding (break)
 
 {-
   ____      _     _                    _     _
@@ -159,31 +160,59 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
 
 example_4_1_mc :: IO ()
 example_4_1_mc = do
-  d <- newData "mc"
+  let max = 20000
+
+  d1 <- newData "mc1"
+  d2 <- newData "mc2"
 
   spawnPlot "plot1" [heredoc|
-    set autoscale xfix
+    set grid back ls 102
+    set xrange [0:${show max}]
+    set yrange [-20:20]
+    set terminal x11 1 noraise
     done = 0
     bind all 'd' 'done = 1'
     while(!done) {
-      plot ${dat d} using 1:2 with lines
-      set output
+      plot ${dat d1} using 1:2 with lines, ${dat d2} using 1:2 with lines
       pause 1
     }
   |]
 
   v_dp <- example_4_1
-  let
-    opts = MC.defaultOpts{
-             MC.eo_max_iter = 9000,
-             MC.eo_learnMonitor = Just MC.Monitor{
-               mon_target = v_dp,
-               mon_data = d
-             }
-           }
 
-  (v,_) <- MC.policy_eval opts gw GWRandomPolicy (mkStdGen 0)
-  showStateVal gw v
+  t1 <- forkIO $
+    let
+      opts = MC.defaultOpts{
+               MC.eo_max_iter = max,
+               MC.eo_learnMonitor = Just MC.Monitor{
+                 mon_target = v_dp,
+                 mon_data = d1
+               }
+             }
+    in do
+    (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy (mkStdGen 0)
+    showStateVal gw v
+
+  t2 <- forkIO $
+    let
+      opts = MC.defaultOpts{
+               MC.eo_max_iter = max,
+               MC.eo_learnMonitor = Just MC.Monitor{
+                 mon_target = v_dp,
+                 mon_data = d2
+               }
+             }
+    in do
+    (v,_) <- MC.policy_eval opts gw GWRandomPolicy (mkStdGen 0)
+    showStateVal gw v
+
+  loop $ do
+    c <- liftIO $ getChar
+    when (c == 'q')  $ do
+        liftIO $ do
+          killThread t1
+          killThread t2
+        break ()
 
 
 -- FIXME: why are results differ slightly from @example_4_1_mc@ ?
