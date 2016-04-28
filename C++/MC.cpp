@@ -82,6 +82,7 @@ typedef list<Move> Episode;
 
 Episode episode(GW gw, State s) {
   Episode e;
+  int n = 0;
 
   while(1) {
     if(mc_is_terminal(gw, s))
@@ -95,7 +96,10 @@ Episode episode(GW gw, State s) {
 
     e.push_back(Move { s, a, s2 });
     s = s2;
+    n++;
   }
+
+  return e;
 }
 
 map<State,int> backtrack_fv(GW gw, Episode e) {
@@ -132,12 +136,17 @@ map<State,CRA> eval (GW gw, int count){
       v[s.first] = meld(v[s.first], s.second);
     }
   }
+  return v;
 }
 
 void showv(GW gw, map<State,CRA> v) {
   for(int y=0; y<gw.sy; y++) {
     for(int x=0; x<gw.sx; x++) {
-      cout << v[{x,y}].c << " ";
+      auto i = v.find(State{x,y});
+      if(i == v.end())
+        cout << "         " ;
+      else
+        cout << i->second.c << " ";
     }
     cout << endl;
   }
@@ -145,7 +154,7 @@ void showv(GW gw, map<State,CRA> v) {
 
 int main() {
   GW gw = {4,4};
-  map<State,CRA> v = eval(gw, 3000);
+  map<State,CRA> v = eval(gw, 60000);
 
   showv(gw, v);
   return 0;
