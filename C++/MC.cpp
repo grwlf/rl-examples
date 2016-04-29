@@ -89,8 +89,8 @@ struct Move {
 
 bool operator<(const Move &m1, const Move &m2) {
   if(m1.s < m2.s || m2.s < m1.s) return m1.s < m2.s;
-  if(m1.a < m2.a || m1.a < m2.a) return m1.a < m2.a;
-  if(m1.s2 < m2.s2 || m2.s2 < m1.s2) return m2.s2 < m2.s2;
+  if(m1.a < m2.a || m2.a < m1.a) return m1.a < m2.a;
+  if(m1.s2 < m2.s2 || m2.s2 < m1.s2) return m1.s2 < m2.s2;
   return false;
 }
 
