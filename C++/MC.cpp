@@ -2,6 +2,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <random>
 #include <cstdlib>
 
 using namespace std;
@@ -31,8 +32,23 @@ bool mc_is_terminal(GW gw, State s) {
   return (s.x ==0 && s.y==0 ) || (s.x == gw.sx-1 && s.y==gw.sy-1);
 }
 
+// [0..max]
+/* int myrand(int max) { */
+/*   return rand()%(max+1); */
+/* } */
+
+static random_device rd;
+static mt19937_64 mt(rd());
+
+/* // [0..max] */
+int myrand(int max) {
+  uniform_int_distribution<int> dist(0, max);
+  return dist(mt);
+}
+
+
 State mc_state (GW gw) {
-  return State {rand()%gw.sx, rand()%gw.sy};
+  return State {myrand(gw.sx-1), myrand(gw.sy-1)};
 }
 
 Actions mc_actions(GW gw, State s) {
@@ -89,7 +105,7 @@ Episode episode(GW gw, State s) {
       break;
     Actions as = mc_actions(gw,s);
 
-    int idx = rand()%(as.size());
+    int idx = myrand(as.size()-1);
     Action a = as[idx];
 
     State s2 = mc_transition(gw,s,a);
@@ -134,11 +150,12 @@ map<State,CRA> eval (GW gw, int count){
   map<State,CRA> v;
   for(int i=0; i<count; i++) {
 
-    if(i==290000) {
-      cout << i << endl;
-    }
+    /* if(i==290000) { */
+    /*   cout << i << endl; */
+    /* } */
 
     State s = mc_state(gw);
+    /* State s = {0,3}; */
     Episode e = episode(gw,s);
     map<State,int> g = backtrack_fv(gw, e);
     if(v.find(s) == v.end()) {
@@ -151,6 +168,8 @@ map<State,CRA> eval (GW gw, int count){
     /*   } */
     /*   v[s.first] = meld(v[s.first], s.second); */
     /* } */
+
+    /* double err = answer[s] - v[s].c; */
 
     double err = 0;
     for(auto s:v) {
@@ -167,19 +186,22 @@ void showv(GW gw, map<State,CRA> v) {
     for(int x=0; x<gw.sx; x++) {
       auto i = v.find(State{x,y});
       if(i == v.end())
-        cout << "         " ;
+        cerr << "         " ;
       else
-        cout << i->second.c << "( " << i->second.n << ")" ;
+        cerr << i->second.c << "( " << i->second.n << ")" ;
     }
-    cout << endl;
+    cerr << endl;
   }
 }
 
 int main() {
+
+  mt.seed(56);
+
   GW gw = {4,4};
   map<State,CRA> v = eval(gw, 900000);
 
-  /* showv(gw, v); */
+  showv(gw, v);
   return 0;
 }
 
