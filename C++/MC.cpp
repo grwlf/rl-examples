@@ -133,15 +133,24 @@ map<State, double> answer = {
 map<State,CRA> eval (GW gw, int count){
   map<State,CRA> v;
   for(int i=0; i<count; i++) {
+
+    if(i==290000) {
+      cout << i << endl;
+    }
+
     State s = mc_state(gw);
     Episode e = episode(gw,s);
     map<State,int> g = backtrack_fv(gw, e);
-    for(auto s : g) {
-      if(v.find(s.first) == v.end()) {
-        v[s.first] = CRA {0,0};
-      }
-      v[s.first] = meld(v[s.first], s.second);
+    if(v.find(s) == v.end()) {
+      v[s] = CRA {0,0};
     }
+    v[s] = meld (v[s], g[s]);
+    /* for(auto s : g) { */
+    /*   if(v.find(s.first) == v.end()) { */
+    /*     v[s.first] = CRA {0,0}; */
+    /*   } */
+    /*   v[s.first] = meld(v[s.first], s.second); */
+    /* } */
 
     double err = 0;
     for(auto s:v) {
@@ -168,9 +177,9 @@ void showv(GW gw, map<State,CRA> v) {
 
 int main() {
   GW gw = {4,4};
-  map<State,CRA> v = eval(gw, 100000);
+  map<State,CRA> v = eval(gw, 900000);
 
-  showv(gw, v);
+  /* showv(gw, v); */
   return 0;
 }
 
