@@ -46,21 +46,24 @@ showActions :: Set Action -> String
 showActions = concat . map showAction . List.sort . Set.toList
 
 data GW = GW {
-    gw_size :: (Int,Int)
+    gw_size :: (Int,Int),
+    gw_exits :: Set (Int,Int)
   }
   deriving(Show)
 
-gw = GW (4,4)
+gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
+
+gw2 = GW (2,1) (Set.fromList [(1,0)])
 
 instance DP_Problem GW (Int,Int) Action where
-  rl_states p@(GW (sx,sy)) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
+  rl_states p@(GW (sx,sy) _) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
 
   rl_actions pr s =
     case Set.member s (rl_terminal_states pr) of
       True -> Set.empty
       False -> Set.fromList [minBound..maxBound]
 
-  rl_transitions (GW (sx,sy)) (x,y) a =
+  rl_transitions (GW (sx,sy) _) (x,y) a =
     let
       check (x',y') =
         if x' >= 0 && x' < sx && y' >= 0 && y' < sy then
@@ -76,9 +79,9 @@ instance DP_Problem GW (Int,Int) Action where
            D -> check (x,y+1)
     )]
 
-  rl_reward (GW (sx,sy)) s a s' = -1
+  rl_reward (GW (sx,sy) _) s a s' = -1
 
-  rl_terminal_states (GW (sx,sy)) = Set.fromList [(0,0), (sx-1,sy-1)]
+  rl_terminal_states (GW _ exits) = exits
 
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)
@@ -89,7 +92,7 @@ instance DP_Policy GWRandomPolicy GW (Int,Int) Action where
     in (\x -> (1%(toInteger $ length a),x))`Set.map`a
 
 showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
-showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
+showStateVal (GW (sx,sy) _) StateVal{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
       case Map.lookup (x,y) v_map of
@@ -100,15 +103,15 @@ showStateVal (GW (sx,sy)) StateVal{..} = liftIO $ do
     printf "\n"
 
 showPolicy :: (MonadIO m, DP_Policy p GW Point Action) => GW -> p -> m ()
-showPolicy pr@(GW (sx,sy)) p = liftIO $ do
+showPolicy pr@(GW (sx,sy) _) p = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
       let acts = Set.map snd $ Set.filter (\(pa,a) -> pa > 0) $ rlp_action p pr (x,y)
       printf "% 4s " (showActions acts)
     printf "\n"
 
-example_4_1 :: IO (StateVal (Int,Int))
-example_4_1 =
+example_4_1_dp :: GW -> IO (StateVal (Int,Int))
+example_4_1_dp gw =
   let
     opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
   in do
@@ -124,7 +127,7 @@ example_4_1 =
 
 
 instance MC_Problem GW (Int,Int) Action where
-  mc_state p@(GW (sx,sy)) g =
+  mc_state p@(GW (sx,sy) _) g =
     flip runRand g $ do
       x <- getRandomR (0,sx-1)
       y <- getRandomR (0,sy-1)
@@ -135,7 +138,7 @@ instance MC_Problem GW (Int,Int) Action where
       True -> Set.empty
       False -> Set.fromList [minBound .. maxBound]
 
-  mc_transition (GW (sx,sy)) (x,y) a g =
+  mc_transition (GW (sx,sy) _) (x,y) a g =
     let
       check (x',y') =
         if x' >= 0 && x' < sx && y' >= 0 && y' < sy then
@@ -150,9 +153,9 @@ instance MC_Problem GW (Int,Int) Action where
        U -> check (x,y-1)
        D -> check (x,y+1), g')
 
-  mc_reward (GW (sx,sy)) s a s' = -1
+  mc_reward (GW (sx,sy) _) s a s' = -1
 
-  mc_is_terminal (GW (sx,sy)) s = (s == (0,0)) || (s == (sx-1,sy-1))
+  mc_is_terminal (GW _ exits) s = Set.member s exits
 
 instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
   mcp_action pr s p g =
@@ -160,8 +163,8 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
-example_4_1_mc :: IO ()
-example_4_1_mc = do
+example_4_1_mc :: GW -> IO ()
+example_4_1_mc gw = do
   let max = 20000
   let g = mkStdGen 33
 
@@ -181,7 +184,7 @@ example_4_1_mc = do
     }
   |]
 
-  v_dp <- example_4_1
+  v_dp <- example_4_1_dp gw
 
   t1 <- forkIO $
     let
