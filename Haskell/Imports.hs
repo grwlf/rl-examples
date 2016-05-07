@@ -13,6 +13,7 @@ module Imports (
   , module Data.Tuple
   , module Data.List
   , module Data.Map.Strict
+  , module Data.Maybe
   , module Data.Set
   , module Debug.Trace
   , module Data.Foldable
@@ -43,6 +44,7 @@ import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set,member)
 import qualified Data.Set as Set
+import Data.Maybe
 import Debug.Trace
 import Data.Foldable
 import Prelude hiding(break)

@@ -196,14 +196,8 @@ policy_eval EvalOpts{..} pr p g = do
     gs <- pure $ backtrack_fv pr es
 
     forM_ (Map.toList gs) $ \(s,g) -> do
-      mv <- uses es_v (Map.lookup s)
-      case mv of
-        Just v -> do
-          {- Melding new estimates with all the previous ones -}
-          es_v %= (Map.insert s (meld v g))
-        Nothing -> do
-          {- Act as V(s) is 0. Initialize it with current reward -}
-          es_v %= (Map.insert s (meld initialAvg g))
+      v <- fromMaybe initialAvg <$> uses es_v (Map.lookup s)
+      es_v %= Map.insert s (meld v g)
 
     case eo_learnMonitor of
       Nothing -> return ()

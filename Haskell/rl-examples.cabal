@@ -1,0 +1,73 @@
+name:                rl-examples
+version:             0.1.0.0
+author:              Sergey Mironov
+maintainer:          grrwlf@gmail.com
+category:            Math
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:
+    DP,
+    MC,
+    Imports,
+    Examples,
+    Types,
+    Ch_4_GridWorld,
+    Ch_4_Gambler,
+    Graphics.TinyPlot
+
+  other-extensions:
+    Rank2Types,
+    ViewPatterns,
+    TypeFamilies,
+    TypeOperators,
+    ScopedTypeVariables,
+    FlexibleInstances,
+    FlexibleContexts,
+    DataKinds,
+    RecordWildCards,
+    MultiParamTypeClasses,
+    FunctionalDependencies,
+    TemplateHaskell,
+    QuasiQuotes,
+    TypeSynonymInstances,
+    IncoherentInstances,
+    NondecreasingIndentation
+
+  build-depends:
+    base >=4.8 && <4.9,
+    containers,
+    mtl,
+    MonadRandom,
+    break,
+    lens,
+    random,
+    heredocs,
+    process,
+    filepath,
+    mersenne-random-pure64
+
+  default-language:
+    Haskell2010
+
+
+executable rl-examples
+  main-is: Main.hs
+  build-depends:
+    base >=4.7,
+    containers,
+    mtl,
+    MonadRandom,
+    break,
+    lens,
+    random,
+    heredocs,
+    process,
+    filepath,
+    mersenne-random-pure64,
+    rl-examples
+
+  default-language:
+    Haskell2010
+
