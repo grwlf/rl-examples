@@ -18,6 +18,7 @@ module Imports (
   , module Data.Foldable
   , module Prelude
   , module System.Random
+  , module System.Random.Mersenne.Pure64
   , module Text.Printf
   , module Graphics.TinyPlot
   , module Text.Heredoc
@@ -46,6 +47,7 @@ import Debug.Trace
 import Data.Foldable
 import Prelude hiding(break)
 import System.Random
+import System.Random.Mersenne.Pure64
 import Text.Printf
 import Graphics.TinyPlot
 import Text.Heredoc
