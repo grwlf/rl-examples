@@ -166,7 +166,7 @@ instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
 example_4_1_mc :: GW -> IO ()
 example_4_1_mc gw = do
   let max = 20000
-  let g = pureMT 33
+  let g = pureMT 42
 
   d1 <- newData "mc1"
   d2 <- newData "mc2"

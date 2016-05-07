@@ -150,6 +150,10 @@ map<State,CRA> eval (GW gw, int count){
   map<State,CRA> v;
   for(int i=0; i<count; i++) {
 
+    if(i%100000 == 0) {
+      cerr << i << endl;
+    }
+
     /* if(i==290000) { */
     /*   cout << i << endl; */
     /* } */
@@ -158,22 +162,22 @@ map<State,CRA> eval (GW gw, int count){
     /* State s = {0,3}; */
     Episode e = episode(gw,s);
     map<State,int> g = backtrack_fv(gw, e);
-    if(v.find(s) == v.end()) {
-      v[s] = CRA {0,0};
-    }
-    v[s] = meld (v[s], g[s]);
-    /* for(auto s : g) { */
-    /*   if(v.find(s.first) == v.end()) { */
-    /*     v[s.first] = CRA {0,0}; */
-    /*   } */
-    /*   v[s.first] = meld(v[s.first], s.second); */
+    /* if(v.find(s) == v.end()) { */
+    /*   v[s] = CRA {0,0}; */
     /* } */
+    /* v[s] = meld (v[s], g[s]); */
+    for(auto s : g) {
+      if(v.find(s.first) == v.end()) {
+        v[s.first] = CRA {0,0};
+      }
+      v[s.first] = meld(v[s.first], s.second);
+    }
 
-    /* double err = answer[s] - v[s].c; */
 
     double err = 0;
+    /* err = abs( answer[s] - v[s].c); */
     for(auto s:v) {
-      err += answer[s.first] - s.second.c;
+      err += abs (answer[s.first] - s.second.c);
     }
     cout << i << "\t" << err << endl;
   }
@@ -196,7 +200,7 @@ void showv(GW gw, map<State,CRA> v) {
 
 int main() {
 
-  mt.seed(56);
+  mt.seed(42);
 
   GW gw = {4,4};
   map<State,CRA> v = eval(gw, 900000);

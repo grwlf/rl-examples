@@ -174,7 +174,7 @@ initialEvalState = EvalState mempty 0
 -- | DIfference between state value estimates
 -- FIXME: handle missing states case
 diffVal :: (Ord s) => StateVal s -> (Map s (Avg Rational)) -> Rational
-diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> a - (current b)) tgt src
+diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> abs $ a - (current b)) tgt src
 
 
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
