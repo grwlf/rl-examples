@@ -1,3 +1,4 @@
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
