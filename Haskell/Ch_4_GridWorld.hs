@@ -1,3 +1,4 @@
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -50,12 +51,6 @@ data GW num = GW {
     gw_exits :: Set (Int,Int)
   }
   deriving(Show)
-
-gw :: GW num
-gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
-
-gw2 :: GW num
-gw2 = GW (2,1) (Set.fromList [(1,0)])
 
 instance (Fractional num, Ord num) => DP_Problem num GW (Int,Int) Action where
   rl_states p@(GW (sx,sy) _) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
@@ -165,15 +160,31 @@ instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandom
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
+
+gw :: GW Rational
+gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
+
+gw_d :: GW Double
+gw_d = GW (4,4) (Set.fromList [(0,0),(3,3)])
+
+gw2 :: GW num
+gw2 = GW (2,1) (Set.fromList [(1,0)])
+
+forkThread :: IO () -> IO (MVar ())
+forkThread proc = do
+    handle <- newEmptyMVar
+    _ <- forkFinally proc (\_ -> putMVar handle ())
+    return handle
+
 example_4_1_mc :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_mc gw = do
-  let max = 900000
+  let max = 20000
   let g = pureMT 42
 
   d1 <- newData "mc1"
   d2 <- newData "mc2"
 
-  spawnPlot "plot1" [heredoc|
+  withPlot "plot1" [heredoc|
     set grid back ls 102
     set xrange [0:${show max}]
     set yrange [-20:20]
@@ -184,11 +195,11 @@ example_4_1_mc gw = do
       plot ${dat d1} using 1:2 with lines, ${dat d2} using 1:2 with lines
       pause 1
     }
-  |]
+  |] $ do
 
   v_dp <- example_4_1_dp gw
 
-  t1 <- forkIO $
+  t1 <- forkThread $
     let
       opts = MC.defaultOpts{
                MC.eo_max_iter = max,
@@ -201,7 +212,7 @@ example_4_1_mc gw = do
     (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy g
     showStateVal gw v
 
-  t2 <- forkIO $
+  t2 <- forkThread $
     let
       opts = MC.defaultOpts{
                MC.eo_max_iter = max,
@@ -214,13 +225,14 @@ example_4_1_mc gw = do
     (v,_) <- MC.policy_eval opts gw GWRandomPolicy g
     showStateVal gw v
 
-  loop $ do
-    c <- liftIO $ getChar
-    when (c == 'q')  $ do
-        liftIO $ do
-          killThread t1
-          killThread t2
-        break ()
+  mapM_ takeMVar [t1,t2]
+  -- loop $ do
+  --   c <- liftIO $ getChar
+  --   when (c == 'q')  $ do
+  --       liftIO $ do
+  --         killThread t1
+  --         killThread t2
+  --       break ()
 
 
 -- FIXME: why are results differ slightly from @example_4_1_mc@ ?

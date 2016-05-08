@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -22,8 +23,8 @@ data PlotData = PlotData {
 newData :: FilePath -> IO PlotData
 newData ((-<.> ".dat") -> filename) = PlotData filename <$> openFile filename WriteMode
 
-push :: (MonadIO m, Num num, Show num) => PlotData -> num -> num -> m ()
-push PlotData{..} x y = liftIO $ do
+push :: (MonadIO m, Fractional num, Real num) => PlotData -> num -> num -> m ()
+push PlotData{..} (fromRational . toRational -> x :: Double) (fromRational . toRational -> y :: Double) = liftIO $ do
   hPutStrLn ps_handle (show x ++ "\t" ++ show y) >> hFlush ps_handle
 
 dat :: PlotData -> String
@@ -38,6 +39,14 @@ spawnPlot :: String -> String -> IO Plot
 spawnPlot ((-<.> ".gnuplot") -> name) plot =
   Plot <$> do
     writeFile name plot *> spawnProcess "gnuplot" [name]
+
+withPlot :: String -> String -> IO a -> IO a
+withPlot ((-<.> ".gnuplot") -> name) plot h = do
+  writeFile name plot
+  p <- spawnProcess "gnuplot" [name]
+  r <- h
+  terminateProcess p
+  return r
 
 
 test = do

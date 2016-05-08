@@ -179,7 +179,7 @@ diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> abs $ a - (curr
 
 
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
-policy_eval :: (MC_Policy num pr s a p, RandomGen g, MonadIO m, Show s, Show a, Show num)
+policy_eval :: (MC_Policy num pr s a p, RandomGen g, MonadIO m, Show s, Show a, Show num, Real num)
   => EvalOpts num s a -> pr num -> p -> g -> m (StateVal num s, g)
 policy_eval EvalOpts{..} pr p g = do
   flip runRandT g $ do

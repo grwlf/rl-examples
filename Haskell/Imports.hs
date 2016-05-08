@@ -3,6 +3,7 @@ module Imports (
     module Control.Arrow
   , module Control.Applicative
   , module Control.Concurrent
+  , module Control.Concurrent.STM
   , module Control.Monad
   , module Control.Monad.Trans
   , module Control.Monad.State.Strict
@@ -30,6 +31,7 @@ where
 import Control.Arrow ((&&&),(***))
 import Control.Applicative
 import Control.Concurrent
+import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.State.Strict
