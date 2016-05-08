@@ -45,17 +45,19 @@ showAction a =
 showActions :: Set Action -> String
 showActions = concat . map showAction . List.sort . Set.toList
 
-data GW = GW {
+data GW num = GW {
     gw_size :: (Int,Int),
     gw_exits :: Set (Int,Int)
   }
   deriving(Show)
 
+gw :: GW num
 gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
 
+gw2 :: GW num
 gw2 = GW (2,1) (Set.fromList [(1,0)])
 
-instance DP_Problem GW (Int,Int) Action where
+instance (Fractional num, Ord num) => DP_Problem num GW (Int,Int) Action where
   rl_states p@(GW (sx,sy) _) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
 
   rl_actions pr s =
@@ -86,23 +88,23 @@ instance DP_Problem GW (Int,Int) Action where
 data GWRandomPolicy = GWRandomPolicy
   deriving(Show)
 
-instance DP_Policy GWRandomPolicy GW (Int,Int) Action where
+instance (Fractional num, Ord num) => DP_Policy num GWRandomPolicy GW (Int,Int) Action where
   rlp_action GWRandomPolicy g s =
     let a = rl_actions g s
     in (\x -> (1%(toInteger $ length a),x))`Set.map`a
 
-showStateVal :: (MonadIO m) => GW -> StateVal Point -> m ()
+showStateVal :: (MonadIO m, Real num) => GW num -> StateVal num Point -> m ()
 showStateVal (GW (sx,sy) _) StateVal{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
       case Map.lookup (x,y) v_map of
-        Just x -> do
-          printf "%-2.1f " (fromRational $ x :: Double)
+        Just v -> do
+          printf "%-2.1f " ((fromRational $ toRational v) :: Double)
         Nothing -> do
           printf "  ?   "
     printf "\n"
 
-showPolicy :: (MonadIO m, DP_Policy p GW Point Action) => GW -> p -> m ()
+showPolicy :: (MonadIO m, DP_Policy num p GW Point Action) => GW num -> p -> m ()
 showPolicy pr@(GW (sx,sy) _) p = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
@@ -110,7 +112,7 @@ showPolicy pr@(GW (sx,sy) _) p = liftIO $ do
       printf "% 4s " (showActions acts)
     printf "\n"
 
-example_4_1_dp :: GW -> IO (StateVal (Int,Int))
+example_4_1_dp :: (Fractional num, Ord num, Real num) => GW num -> IO (StateVal num (Int,Int))
 example_4_1_dp gw =
   let
     opts = defaultOpts{eo_max_iter=300, eo_gamma = 1, eo_etha = 0.001}
@@ -126,7 +128,7 @@ example_4_1_dp gw =
 
 
 
-instance MC_Problem GW (Int,Int) Action where
+instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
   mc_state p@(GW (sx,sy) _) g =
     flip runRand g $ do
       x <- getRandomR (0,sx-1)
@@ -157,15 +159,15 @@ instance MC_Problem GW (Int,Int) Action where
 
   mc_is_terminal (GW _ exits) s = Set.member s exits
 
-instance MC_Policy GW (Int,Int) Action GWRandomPolicy where
+instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
   mcp_action pr s p g =
     case mc_is_terminal pr s of
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
-example_4_1_mc :: GW -> IO ()
+example_4_1_mc :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_mc gw = do
-  let max = 40000
+  let max = 900000
   let g = pureMT 42
 
   d1 <- newData "mc1"

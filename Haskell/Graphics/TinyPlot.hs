@@ -22,7 +22,7 @@ data PlotData = PlotData {
 newData :: FilePath -> IO PlotData
 newData ((-<.> ".dat") -> filename) = PlotData filename <$> openFile filename WriteMode
 
-push :: (MonadIO m) => PlotData -> Double -> Double -> m ()
+push :: (MonadIO m, Num num, Show num) => PlotData -> num -> num -> m ()
 push PlotData{..} x y = liftIO $ do
   hPutStrLn ps_handle (show x ++ "\t" ++ show y) >> hFlush ps_handle
 

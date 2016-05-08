@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -25,7 +27,7 @@ data Bet = Bet {
   }
   deriving(Show, Eq, Ord)
 
-data Game = Game {
+data Game num = Game {
     game_win_score :: Int
   }
   deriving(Show)
@@ -36,7 +38,7 @@ data Gambler = Gambler {
   deriving(Show, Eq, Ord)
 
 
-instance DP_Problem Game Gambler Bet where
+instance (Fractional num, Ord num) => DP_Problem num Game Gambler Bet where
 
   rl_states Game{..} =
     Set.fromList [Gambler pocket | pocket <- [0..game_win_score]]
@@ -63,39 +65,48 @@ instance DP_Problem Game Gambler Bet where
 
   rl_terminal_states Game{..} = Set.fromList [ Gambler 0, Gambler game_win_score ]
 
+thegame :: Game Rational
+thegame = Game 100
 
-example_4_3 :: IO ()
-example_4_3 =
+
+example_4_3 :: forall num . (Fractional num, Ord num, Real num) => Game num -> IO ()
+example_4_3 thegame =
   let
-      thegame = Game 100
-      opts = defaultOpts {
-          eo_max_iter = 1
-        , eo_gamma = 1.0
-        , eo_etha = 0.00001
-        , eo_debug = const $ return ()
-      }
+    showValPolicy :: (StateVal num Gambler, GenericPolicy Gambler Bet) -> String
+    showValPolicy (v@StateVal{..}, GenericPolicy{..}) =
+      unlines $
+      flip map (Map.toAscList v_map `zip` Map.toAscList gp_actions) $ \((_, vs) , (s@Gambler{..}, set)) ->
+        let
+          actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
 
-      showValPolicy (v@StateVal{..}, GenericPolicy{..}) =
-        unlines $
-        flip map (Map.toAscList v_map `zip` Map.toAscList gp_actions) $ \((_, vs) , (s@Gambler{..}, set)) ->
-          let
-            actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
+          show_actmap =
+            let
+              d :: Bet -> Double
+              d a = fromRational $ toRational $ stateval v s a
+            in
+            List.intercalate "," $
+            flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (d a)) ++ ")"
 
-            show_actmap =
-              List.intercalate "," $
-              flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (stateval v s a)) ++ ")"
+          (mx, Bet{..})
+            | null actmap = (0, Bet 0)
+            | otherwise = head $ actmap
+          show_vs = printf "% 2.5f" (fromRational $ toRational vs :: Double)
+        in
+        (printf ("%02d: ") g_pocket) ++ (replicate bet_amount '#') ++ show bet_amount ++ " " ++ show_vs ++ "  " ++ show_actmap
 
-            (mx, Bet{..})
-              | null actmap = (0, Bet 0)
-              | otherwise = head $ actmap
-            show_vs = printf "% 2.5f" (fromRational vs :: Double)
-          in
-          (printf ("%02d: ") g_pocket) ++ (replicate bet_amount '#') ++ show bet_amount ++ " " ++ show_vs ++ "  " ++ show_actmap
+    debugState :: (StateVal num Gambler, GenericPolicy Gambler Bet) -> IO ()
+    debugState = putStrLn . showValPolicy
 
-      debugState :: (StateVal Gambler, GenericPolicy Gambler Bet) -> IO ()
-      debugState = putStrLn . showValPolicy
+    opts :: EvalOpts num s a
+    opts = defaultOpts {
+        eo_max_iter = 1
+      , eo_gamma = 1.0
+      , eo_etha = 0.00001
+      , eo_debug = const $ return ()
+    }
 
-      stateval v s a = (fromRational $ policy_action_value thegame s a opts v :: Double)
+    stateval :: (DP_Problem num Game s a) => StateVal num s -> s-> a -> num
+    stateval v s a = policy_action_value thegame s a opts v
 
   in do
   (v,p) <- policy_iteraton thegame (uniformGenericPolicy thegame) (zero_sate_values thegame) opts

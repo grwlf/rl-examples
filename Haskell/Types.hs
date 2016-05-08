@@ -24,8 +24,8 @@ debug = liftIO . putStrLn
 type Probability = Rational
 type Reward = Rational
 
-data StateVal s = StateVal {
-    v_map :: Map s Rational
+data StateVal num s = StateVal {
+    v_map :: Map s num
   } deriving(Show)
 
 data GenericPolicy s a = GenericPolicy {
