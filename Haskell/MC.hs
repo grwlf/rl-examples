@@ -41,6 +41,11 @@ class (Fractional num, Ord s) => MC_Problem num pr s a | pr -> s , pr -> a where
 class (MC_Problem num pr s a) => MC_Policy num pr s a p where
   mcp_action :: (RandomGen g) => pr num -> s -> p -> g -> (Maybe a,g)
 
+class (Show s, Show a, Show (pr num), Show num) => MC_Problem_Show num pr s a
+
+-- Too clumsy. Try using MC_Problem_Show instead
+class (MC_Policy num pr s a p, Show s, Show a, Show (pr num), Show num, Show p) => MC_Policy_Show num pr s a p
+
 data MC a s pr num = MC (pr num)
   deriving(Show)
 
@@ -57,6 +62,7 @@ instance (DP_Problem num pr s a, DP_Policy num p pr s a) => MC_Policy num (MC a 
       True -> (Nothing, g)
       False -> flip runRand g $ fromList $ flip map (Set.toList $ rlp_action p pr s) $ \(p,a) -> (Just a,p)
 
+instance (DP_Policy num p pr s a, Show num, Show a, Show s, Show p, Show (pr num)) => MC_Policy_Show num (MC a s pr) s a p
 
 {-
     _    _
@@ -179,7 +185,7 @@ diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> abs $ a - (curr
 
 
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
-policy_eval :: (MC_Policy num pr s a p, RandomGen g, MonadIO m, Show s, Show a, Show num, Real num)
+policy_eval :: (MC_Policy_Show num pr s a p, RandomGen g, MonadIO m, Real num)
   => EvalOpts num s a -> pr num -> p -> g -> m (StateVal num s, g)
 policy_eval EvalOpts{..} pr p g = do
   flip runRandT g $ do
@@ -206,4 +212,9 @@ policy_eval EvalOpts{..} pr p g = do
         v <- use es_v
         push mon_data (fromInteger i) (diffVal mon_target v)
 
+
+-- | Figure 5.4 pg 116
+monte_carlo_es :: (MC_Problem_Show num pr s a, RandomGen g, MonadIO m)
+  => EvalOpts num s a -> pr num -> GenericPolicy s a -> Q num s a -> g -> m ((Q num s a, GenericPolicy s a), g)
+monte_carlo_es EvalOpts{..} pr gp q = undefined
 

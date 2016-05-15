@@ -36,6 +36,10 @@ data Histogram a = Histogram {
     hist_map :: Map a Integer
   } deriving(Show)
 
+data Q num s a = Q {
+    q_map :: Map (s,a) num
+  }
+
 showHist :: (Ord a) => Histogram a -> IO ()
 showHist Histogram{..} = do
   let max = fromInteger $ maximum $ map snd $ Map.toAscList hist_map

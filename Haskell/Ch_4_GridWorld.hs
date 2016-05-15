@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 
 import Types as RL
 import DP as RL
-import MC(MC_Problem(..), MC_Policy(..), MC(..))
+import MC(MC_Problem(..), MC_Policy(..), MC(..), MC_Policy_Show(..))
 import qualified MC as MC
 import Prelude hiding (break)
 
@@ -160,6 +160,7 @@ instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandom
       True -> (Nothing, g)
       False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
 
+instance (Fractional num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
 
 gw :: GW Rational
 gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
