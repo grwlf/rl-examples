@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -5,6 +6,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Types where
 
+import Control.Arrow ((&&&),(***))
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Random
@@ -17,6 +19,8 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
+
+import Imports
 
 debug :: (MonadIO m) => String -> m ()
 debug = liftIO . putStrLn
@@ -36,10 +40,6 @@ data Histogram a = Histogram {
     hist_map :: Map a Integer
   } deriving(Show)
 
-data Q num s a = Q {
-    q_map :: Map (s,a) num
-  }
-
 showHist :: (Ord a) => Histogram a -> IO ()
 showHist Histogram{..} = do
   let max = fromInteger $ maximum $ map snd $ Map.toAscList hist_map
@@ -54,4 +54,43 @@ sample n f =
     replicateM_ n $ do
       x <- lift $ liftRand f
       modify $ Map.insertWith (+) x 1
+
+
+data Avg num = Avg {
+    avg_curr :: num
+  , avg_n :: Integer
+  } deriving(Show)
+
+initialAvg :: (Fractional num) => Avg num
+initialAvg = Avg 0 0
+
+singletonAvg :: (Num num) => num -> Avg num
+singletonAvg x = Avg x 1
+
+current :: (Fractional s) => Avg s -> s
+current (Avg c n) = c
+
+meld :: forall s . (Fractional s) => Avg s -> s -> Avg s
+meld (Avg c n) s = Avg (c + (s-c)/(fromInteger (n+1))) (n + 1)
+
+combineAvg :: (Fractional num) => Avg num -> Avg num -> Avg num
+combineAvg a@(Avg v 1) b = meld b v
+combineAvg a b@(Avg v 1) = meld a v
+combineAvg _ _ = error "combineAvg: Only defined for singletons for now"
+
+-- testAvg :: Double
+testAvg x = do
+  -- fromRational $ do
+  (current *** (\l -> sum l / (fromInteger $ toInteger $ length l))) $ do
+  fst $ flip runRand (mkStdGen 0) $ do
+  flip execStateT (initialAvg :: Avg Double, ([] :: [Double])) $ do
+  forM_ [0..x] $ \i -> do
+    -- r <- getRandomR (1,9)
+    modify $ (flip meld (fromInteger i)) *** (fromInteger i:)
+
+data Q num s a = Q {
+    _q_map :: Map s (Map a (Avg num))
+  } deriving(Show)
+
+makeLenses ''Q
 

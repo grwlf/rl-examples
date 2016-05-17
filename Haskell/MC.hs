@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -11,7 +12,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
-module MC where
+module MC (
+    module MC
+  , module MC.Types
+  ) where
 
 import Imports
 import qualified Data.List as List
@@ -23,46 +27,7 @@ import Types as RL
 import DP (DP_Problem(..), DP_Policy(..))
 import qualified DP as DP
 
-{-
-  ____ _
- / ___| | __ _ ___ ___  ___  ___
-| |   | |/ _` / __/ __|/ _ \/ __|
-| |___| | (_| \__ \__ \  __/\__ \
- \____|_|\__,_|___/___/\___||___/
--}
-
-class (Fractional num, Ord s) => MC_Problem num pr s a | pr -> s , pr -> a where
-  mc_state :: (RandomGen g) => pr num -> g -> (s,g)
-  mc_actions :: pr num -> s -> Set a
-  mc_transition :: (RandomGen g) => pr num -> s -> a -> g -> (s,g)
-  mc_reward :: pr num -> s -> a -> s -> num
-  mc_is_terminal :: pr num -> s -> Bool
-
-class (MC_Problem num pr s a) => MC_Policy num pr s a p where
-  mcp_action :: (RandomGen g) => pr num -> s -> p -> g -> (Maybe a,g)
-
-class (Show s, Show a, Show (pr num), Show num) => MC_Problem_Show num pr s a
-
--- Too clumsy. Try using MC_Problem_Show instead
-class (MC_Policy num pr s a p, Show s, Show a, Show (pr num), Show num, Show p) => MC_Policy_Show num pr s a p
-
-data MC a s pr num = MC (pr num)
-  deriving(Show)
-
-instance DP_Problem num pr s a => MC_Problem num (MC a s pr) s a where
-  mc_state (MC pr) = runRand $ uniform (Set.toList (rl_states pr))
-  mc_actions (MC pr) = rl_actions pr
-  mc_transition (MC pr) s a = runRand $ fromList $ map swap (Set.toList $ rl_transitions pr s a)
-  mc_reward (MC pr) = rl_reward pr
-  mc_is_terminal (MC pr) s = member s (rl_terminal_states pr)
-
-instance (DP_Problem num pr s a, DP_Policy num p pr s a) => MC_Policy num (MC a s pr) s a p where
-  mcp_action (MC pr) s p g =
-    case member s (rl_terminal_states pr) of
-      True -> (Nothing, g)
-      False -> flip runRand g $ fromList $ flip map (Set.toList $ rlp_action p pr s) $ \(p,a) -> (Just a,p)
-
-instance (DP_Policy num p pr s a, Show num, Show a, Show s, Show p, Show (pr num)) => MC_Policy_Show num (MC a s pr) s a p
+import MC.Types
 
 {-
     _    _
@@ -74,14 +39,7 @@ instance (DP_Policy num p pr s a, Show num, Show a, Show s, Show p, Show (pr num
 -}
 
 
-newtype Episode s a = Episode {
-  ep_list :: [(s,a,s)]
-  } deriving(Show)
-
-episode_forward Episode{..} = reverse ep_list
-episode_backward Episode{..} = ep_list
-
--- | Builds an episode which is a list of transitions, terminal transition goes in head
+-- | Builds an episode which is a list of transitions, terminal transition is near head
 episode :: (RandomGen g , MC_Policy num pr s a p, MonadIO m, Show s, Show a) => pr num -> s -> p -> g -> m (Episode s a,g)
 episode pr s p g = do
   flip runRandT g $ do
@@ -96,7 +54,6 @@ episode pr s p g = do
       False -> do
         Just a <- rnd $ mcp_action pr s p
         s' <- rnd $ mc_transition pr s a
-        -- liftIO $ putStrLn $ ". " ++  show (s,a,s')
         modify $ const s' *** ((s,a,s'):)
 
 -- Backtrack rewards, first visit counts
@@ -109,63 +66,6 @@ backtrack_fv pr ep =
       g <- use _2
       _1 %= (Map.insert s g)
 
-
-data Monitor num s = Monitor {
-    mon_target :: StateVal num s
-  , mon_data :: PlotData
-  } deriving(Show)
-
-monitorNew :: (MonadIO m) => StateVal num s -> m (Monitor num s)
-monitorNew tgt = liftIO $
-  Monitor tgt <$> do
-    newData "MC"
-
-
-data EvalOpts num s a = EvalOpts {
-    eo_gamma :: num
-  -- ^ Forgetness
-  -- , eo_etha :: Rational
-  -- ^ policy evaluation precision
-  , eo_max_iter :: Integer
-  -- ^ policy evaluation iteration limit, [1..maxBound]
-  -- , eo_floating_precision :: Double
-  -- , eo_debug :: (StateVal num s, GenericPolicy s a) -> IO ()
-  , eo_learnMonitor :: Maybe (Monitor num s)
-  } deriving(Show)
-
-defaultOpts :: (Fractional num) => EvalOpts num s a
-defaultOpts = EvalOpts {
-    eo_gamma = 0.9
-  -- , eo_etha = 0.1
-  , eo_max_iter = 10^3
-  -- , eo_floating_precision = 1/10^9
-  -- , eo_debug = error "no debug specified"
-  , eo_learnMonitor = Nothing
-  }
-
-data Avg num = Avg {
-    avg_curr :: num
-  , avg_n :: num
-  } deriving(Show)
-
-initialAvg :: (Fractional num) => Avg num
-initialAvg = Avg 0 0
-
-current :: (Fractional s) => Avg s -> s
-current (Avg c n) = c
-
-meld :: forall s . (Fractional s) => Avg s -> s -> Avg s
-meld (Avg c n) s = Avg (c + (s-c)/(n+1)) (n + 1)
-
--- testAvg :: Double
-testAvg x = do
-  -- fromRational $ do
-  (current *** (\l -> sum l / (fromInteger $ toInteger $ length l))) $ do
-  fst $ flip runRand (mkStdGen 0) $ do
-  flip execStateT (initialAvg :: Avg Double, ([] :: [Double])) $ do
-  forM_ [0..x] $ \i -> do
-    -- r <- getRandomR (1,9)
-    modify $ (flip meld (fromInteger i)) *** (fromInteger i:)
 
 
 data EvalState num s = EvalState {
@@ -187,8 +87,8 @@ diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> abs $ a - (curr
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
 policy_eval :: (MC_Policy_Show num pr s a p, RandomGen g, MonadIO m, Real num)
   => EvalOpts num s a -> pr num -> p -> g -> m (StateVal num s, g)
-policy_eval EvalOpts{..} pr p g = do
-  flip runRandT g $ do
+policy_eval EvalOpts{..} pr p = do
+  runRandT $ do
   StateVal . Map.map current . view es_v <$> do
   flip execStateT initialEvalState $ do
   loop $ do
@@ -211,10 +111,4 @@ policy_eval EvalOpts{..} pr p g = do
       Just Monitor{..} -> do
         v <- use es_v
         push mon_data (fromInteger i) (diffVal mon_target v)
-
-
--- | Figure 5.4 pg 116
-monte_carlo_es :: (MC_Problem_Show num pr s a, RandomGen g, MonadIO m)
-  => EvalOpts num s a -> pr num -> GenericPolicy s a -> Q num s a -> g -> m ((Q num s a, GenericPolicy s a), g)
-monte_carlo_es EvalOpts{..} pr gp q = undefined
 
