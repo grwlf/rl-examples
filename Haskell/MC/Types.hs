@@ -21,6 +21,7 @@ import qualified Data.Set as Set
 import Prelude hiding(break)
 
 import Types as RL
+import Monad as RL
 import DP (DP_Problem(..), DP_Policy(..))
 import qualified DP as DP
 
@@ -40,28 +41,38 @@ class (Fractional num, Ord s) => MC_Problem num pr s a | pr -> s , pr -> a where
   mc_is_terminal :: pr num -> s -> Bool
 
 class (MC_Problem num pr s a) => MC_Policy num pr s a p where
-  mcp_action :: (RandomGen g) => pr num -> s -> p -> g -> (Maybe a,g)
+  mc_action :: (RandomGen g) => pr num -> s -> p -> g -> (a,g)
 
 class (MC_Problem num pr s a, Show s, Show a, Show (pr num), Show num) => MC_Problem_Show num pr s a
 
 -- Too clumsy. Try using MC_Problem_Show instead
 class (MC_Policy num pr s a p, Show s, Show a, Show (pr num), Show num, Show p) => MC_Policy_Show num pr s a p
 
+instance MC_Problem num pr s a => MC_Policy num pr s a (GenericPolicy s a) where
+  mc_action pr s p = runRnd $ do
+    case mc_is_terminal pr s of
+      True -> error "mc_action(1): attempt to query terminate state"
+      False ->
+        case Map.lookup s (view p_map p) of
+          Nothing -> RL.uniform (Set.toList (mc_actions pr s))
+          Just as -> RL.fromList (Set.toList as)
+
+-- DP compatibility adapter
 data MC a s pr num = MC (pr num)
   deriving(Show)
 
 instance DP_Problem num pr s a => MC_Problem num (MC a s pr) s a where
-  mc_state (MC pr) = runRand $ uniform (Set.toList (rl_states pr))
+  mc_state (MC pr) = runRnd $ RL.uniform (Set.toList (rl_states pr))
   mc_actions (MC pr) = rl_actions pr
-  mc_transition (MC pr) s a = runRand $ fromList $ map swap (Set.toList $ rl_transitions pr s a)
+  mc_transition (MC pr) s a = runRnd $ RL.fromList $ Set.toList $ rl_transitions pr s a
   mc_reward (MC pr) = rl_reward pr
   mc_is_terminal (MC pr) s = member s (rl_terminal_states pr)
 
 instance (DP_Problem num pr s a, DP_Policy num p pr s a) => MC_Policy num (MC a s pr) s a p where
-  mcp_action (MC pr) s p g =
+  mc_action (MC pr) s p =
     case member s (rl_terminal_states pr) of
-      True -> (Nothing, g)
-      False -> flip runRand g $ fromList $ flip map (Set.toList $ rlp_action p pr s) $ \(p,a) -> (Just a,p)
+      True -> error "mc_action(2): attempt to query terminate state"
+      False -> runRnd $ RL.fromList $ Set.toList $ rlp_action p pr s
 
 instance (DP_Policy num p pr s a, Show num, Show a, Show s, Show p, Show (pr num)) => MC_Policy_Show num (MC a s pr) s a p
 
@@ -85,7 +96,7 @@ episode_backward Episode{..} = ep_list
 data EvalOpts num s a = EvalOpts {
     eo_gamma :: num
   -- ^ Forgetness
-  -- , eo_etha :: Rational
+  , eo_num_prec :: num
   -- ^ policy evaluation precision
   , eo_max_iter :: Integer
   -- ^ policy evaluation iteration limit, [1..maxBound]
@@ -97,7 +108,7 @@ data EvalOpts num s a = EvalOpts {
 defaultOpts :: (Fractional num) => EvalOpts num s a
 defaultOpts = EvalOpts {
     eo_gamma = 0.9
-  -- , eo_etha = 0.1
+  , eo_num_prec = 0 {- OK for Rationals -}
   , eo_max_iter = 10^3
   -- , eo_floating_precision = 1/10^9
   -- , eo_debug = error "no debug specified"

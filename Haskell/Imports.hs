@@ -16,6 +16,7 @@ module Imports (
   , module Data.Map.Strict
   , module Data.Maybe
   , module Data.Set
+  , module Data.Function
   , module Debug.Trace
   , module Data.Foldable
   , module Prelude
@@ -49,6 +50,7 @@ import qualified Data.Set as Set
 import Data.Maybe
 import Debug.Trace
 import Data.Foldable
+import Data.Function
 import Prelude hiding(break)
 import System.Random
 import System.Random.Mersenne.Pure64

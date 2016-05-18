@@ -52,7 +52,7 @@ episode pr s p g = do
       True -> do
         break ()
       False -> do
-        Just a <- rnd $ mcp_action pr s p
+        a <- rnd $ mc_action pr s p
         s' <- rnd $ mc_transition pr s a
         modify $ const s' *** ((s,a,s'):)
 

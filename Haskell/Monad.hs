@@ -6,6 +6,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Monad where
 
+import Control.Monad.Identity
 import Imports
 
 
@@ -17,6 +18,9 @@ class (Monad m, RandomGen g) => MonadRnd g m | m -> g where
 
 newtype RndT g m a = RndT { unRndT :: StateT g m a }
     deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadFix)
+
+runRnd :: RndT g Identity a -> g -> (a,g)
+runRnd r g = runIdentity $ runStateT (unRndT r) g
 
 runRndT :: RndT g m a -> g -> m (a,g)
 runRndT r g = runStateT (unRndT r) g

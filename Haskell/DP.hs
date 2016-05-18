@@ -38,21 +38,21 @@ zero_sate_values pr =  StateVal $ Map.fromList $ map (\s -> (s,0.0)) (Set.toList
 class (Ord s, Fractional num, Ord num) => DP_Problem num pr s a | pr -> s , pr -> a where
   rl_states :: pr num -> Set s
   rl_actions :: pr num -> s -> Set a
-  rl_transitions :: pr num -> s -> a -> Set (Probability, s)
+  rl_transitions :: pr num -> s -> a -> Set (s, Probability)
   rl_reward :: pr num -> s -> a -> s -> num
   rl_terminal_states :: pr num -> Set s
 
 -- | Dynamic Programming Policy. Parameters have same meaning as in DP_Problem,
 -- @p@ means the Policy
 class (DP_Problem num pr s a) => DP_Policy num p pr s a where
-  rlp_action :: p -> pr num -> s -> Set (Probability, a)
+  rlp_action :: p -> pr num -> s -> Set (a,Probability)
 
 -- | For given state, probabilities for all possible action should sum up to 1
 invariant_probable_actions :: (DP_Problem num pr s a, Show s, Show a) => pr num -> Bool
 invariant_probable_actions pr =
   flip all (rl_states pr) $ \s ->
     flip all (rl_actions pr s) $ \a ->
-      case sum (map fst (Set.toList (rl_transitions pr s a))) of
+      case sum (map snd (Set.toList (rl_transitions pr s a))) of
         1 -> True
         x -> error $ "Total probability of state " ++ show s ++ " action " ++ show a ++ " sum up to " ++ show x
 
@@ -61,7 +61,7 @@ invariant_closed_transition :: (DP_Problem num pr s a, Show s, Show a) => pr num
 invariant_closed_transition pr =
   flip all (rl_states pr) $ \s ->
     flip all (rl_actions pr s) $ \a ->
-      flip all (rl_transitions pr s a) $ \(p,s') ->
+      flip all (rl_transitions pr s a) $ \(s',p) ->
         case (Set.member s' (rl_states pr)) of
           True -> True
           False -> error $ "State " ++ show s ++ ", action " ++ show a ++ " lead to invalid state " ++ show s'
@@ -88,7 +88,7 @@ invariant_terminal pr =
 invariant_policy_actions :: (DP_Policy num p pr s a, Ord a, Show s, Show a) => p -> pr num -> Bool
 invariant_policy_actions p pr =
   flip all (rl_states pr) $ \s ->
-    flip all (rlp_action p pr s) $ \(prob, a) ->
+    flip all (rlp_action p pr s) $ \(a, prob) ->
       case Set.member a (rl_actions pr s) of
         True -> True
         False -> error $ "Policy from state " ++ show s ++ " leads to invalid action " ++ show a
@@ -100,7 +100,7 @@ invariant_policy_prob p pr =
     let
       as = Set.toList (rlp_action p pr s)
     in
-    case sum $ map fst as of
+    case sum $ map snd as of
       1 -> True
       0 | null as -> True
       x -> error $ "Policy state " ++ show s ++ " probabilities sum up to " ++ show x
@@ -119,15 +119,15 @@ policy_eq :: (Eq a, DP_Policy num p1 pr s a, DP_Policy num p2 pr s a) => pr num 
 policy_eq pr p1 p2 = all (\s -> (rlp_action p1 pr s) == (rlp_action p2 pr s)) (rl_states pr)
 
 instance (DP_Problem num pr s a) => DP_Policy num (GenericPolicy s a) pr s a where
-  rlp_action GenericPolicy{..} _ s = gp_actions ! s
+  rlp_action GenericPolicy{..} _ s = _p_map ! s
 
 uniformGenericPolicy :: (Ord a, DP_Problem num pr s a) => pr num -> GenericPolicy s a
 uniformGenericPolicy pr = GenericPolicy{..} where
-  gp_actions = Map.fromList $ flip map (Set.toList (rl_states pr)) $ \s ->
+  _p_map = Map.fromList $ flip map (Set.toList (rl_states pr)) $ \s ->
     let
       as = rl_actions pr s
     in
-    (s, Set.map (\a -> (1%(toInteger $ length as),a)) as)
+    (s, Set.map (\a -> (a, 1%(toInteger $ length as))) as)
 
 
 
@@ -193,9 +193,9 @@ policy_eval pr p EvalOpts{..} v = do
       forM_ (rl_states pr) $ \s -> do
         v_s <- uses es_v (!s)
         v's <- do
-          sum (rlp_action p pr s) $ \(fromRational -> pa, a) -> do
+          sum (rlp_action p pr s) $ \(a, fromRational -> pa) -> do
             (pa*) <$> do
-              sum (rl_transitions pr s a) $ \(fromRational -> p, s') -> do
+              sum (rl_transitions pr s a) $ \(s', fromRational -> p) -> do
                 v_s' <- uses es_v (!s')
                 pure $ p * ((rl_reward pr s a s') + eo_gamma * (v_s'))
 
@@ -214,7 +214,7 @@ policy_eval pr p EvalOpts{..} v = do
 policy_action_value :: (DP_Problem num pr s a) => pr num -> s  -> a -> EvalOpts num s a -> StateVal num s -> num
 policy_action_value pr s a EvalOpts{..} StateVal{..} =
   List.sum $
-  flip map (Set.toList $ rl_transitions pr s a) $ \(fromRational -> p, s') ->
+  flip map (Set.toList $ rl_transitions pr s a) $ \(s', fromRational -> p) ->
     p * ((rl_reward pr s a s') + eo_gamma * (v_map ! s'))
 
 policy_improve :: (DP_Problem num pr s a, MonadIO m, Ord a)
@@ -246,7 +246,7 @@ policy_improve pr eo@EvalOpts{..} v@StateVal{..} = do
                  ) (0 ,Set.empty) (rl_actions pr s)
 
         let nmax = toInteger (Set.size maxa)
-        modify $ Map.insert s (Set.map (\a -> (1%nmax,a)) maxa)
+        modify $ Map.insert s (Set.map (\a -> (a,1%nmax)) maxa)
 
 
 policy_iteraton_step :: (DP_Policy num p pr s a, MonadIO m, Ord a)

@@ -33,8 +33,10 @@ data StateVal num s = StateVal {
   } deriving(Show)
 
 data GenericPolicy s a = GenericPolicy {
-    gp_actions :: Map s (Set (Probability,a))
+    _p_map :: Map s (Set (a,Probability))
   } deriving(Eq,Ord, Show)
+
+makeLenses ''GenericPolicy
 
 data Histogram a = Histogram {
     hist_map :: Map a Integer
