@@ -17,6 +17,7 @@ import Types as RL
 import DP as RL
 import MC(MC_Problem(..), MC_Policy(..), MC(..), MC_Policy_Show(..))
 import qualified MC as MC
+import qualified MC.ES
 import Prelude hiding (break)
 
 {-
@@ -52,6 +53,7 @@ data GW num = GW {
   }
   deriving(Show)
 
+{- DP instances -}
 instance (Fractional num, Ord num) => DP_Problem num GW (Int,Int) Action where
   rl_states p@(GW (sx,sy) _) = Set.fromList [(x,y) | x <- [0..sx-1], y <- [0..sy-1]]
 
@@ -68,13 +70,13 @@ instance (Fractional num, Ord num) => DP_Problem num GW (Int,Int) Action where
         else
           (x,y)
     in
-    Set.fromList [(1%1,
+    Set.fromList [(
         case a of
            L -> check (x-1,y)
            R -> check (x+1,y)
            U -> check (x,y-1)
            D -> check (x,y+1)
-    )]
+        , 1%1)]
 
   rl_reward (GW (sx,sy) _) s a s' = -1
 
@@ -86,7 +88,7 @@ data GWRandomPolicy = GWRandomPolicy
 instance (Fractional num, Ord num) => DP_Policy num GWRandomPolicy GW (Int,Int) Action where
   rlp_action GWRandomPolicy g s =
     let a = rl_actions g s
-    in (\x -> (1%(toInteger $ length a),x))`Set.map`a
+    in (\x -> (x,1%(toInteger $ length a)))`Set.map`a
 
 showStateVal :: (MonadIO m, Real num) => GW num -> StateVal num Point -> m ()
 showStateVal (GW (sx,sy) _) StateVal{..} = liftIO $ do
@@ -103,10 +105,11 @@ showPolicy :: (MonadIO m, DP_Policy num p GW Point Action) => GW num -> p -> m (
 showPolicy pr@(GW (sx,sy) _) p = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
-      let acts = Set.map snd $ Set.filter (\(pa,a) -> pa > 0) $ rlp_action p pr (x,y)
+      let acts = Set.map fst $ Set.filter (\(a,pa) -> pa > 0) $ rlp_action p pr (x,y)
       printf "% 4s " (showActions acts)
     printf "\n"
 
+-- DP approach
 example_4_1_dp :: (Fractional num, Ord num, Real num) => GW num -> IO (StateVal num (Int,Int))
 example_4_1_dp gw =
   let
@@ -122,6 +125,7 @@ example_4_1_dp gw =
 
 
 
+{- MC instances -}
 
 instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
   mc_state p@(GW (sx,sy) _) g =
@@ -155,10 +159,10 @@ instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
   mc_is_terminal (GW _ exits) s = Set.member s exits
 
 instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
-  mcp_action pr s p g =
+  mc_action pr s p =
     case mc_is_terminal pr s of
-      True -> (Nothing, g)
-      False -> flip runRand g $ Just <$> uniform [minBound .. maxBound]
+      True -> error "mc_action(3): attempt to query terminate state"
+      False -> runRand $ uniform [minBound .. maxBound]
 
 instance (Fractional num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
 
@@ -177,6 +181,7 @@ forkThread proc = do
     _ <- forkFinally proc (\_ -> putMVar handle ())
     return handle
 
+{- Uniform random policy evaluation using MC method -}
 example_4_1_mc :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_mc gw = do
   let max = 20000
@@ -200,6 +205,7 @@ example_4_1_mc gw = do
 
   v_dp <- example_4_1_dp gw
 
+  {- DP-to-MC Adapter -}
   t1 <- forkThread $
     let
       opts = MC.defaultOpts{
@@ -213,6 +219,7 @@ example_4_1_mc gw = do
     (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy g
     showStateVal gw v
 
+  {- Native MC implementation -}
   t2 <- forkThread $
     let
       opts = MC.defaultOpts{
@@ -227,18 +234,39 @@ example_4_1_mc gw = do
     showStateVal gw v
 
   mapM_ takeMVar [t1,t2]
-  -- loop $ do
-  --   c <- liftIO $ getChar
-  --   when (c == 'q')  $ do
-  --       liftIO $ do
-  --         killThread t1
-  --         killThread t2
-  --       break ()
 
 
--- FIXME: why are results differ slightly from @example_4_1_mc@ ?
-example_4_1_mc2 :: (MonadIO m) => m ()
-example_4_1_mc2 = do
-  (v,_) <- MC.policy_eval MC.defaultOpts{MC.eo_max_iter = 3000} (MC gw) GWRandomPolicy (mkStdGen 0)
-  showStateVal gw v
+
+{- Uniform random policy evaluation using MC method -}
+example_4_1_iter :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
+example_4_1_iter gw = do
+  let max = 20000
+  let g = pureMT 42
+
+  d <- newData "mc"
+
+  withPlot "plot1" [heredoc|
+    set grid back ls 102
+    set xrange [0:${show max}]
+    set yrange [-20:20]
+    set terminal x11 1 noraise
+    done = 0
+    bind all 'd' 'done = 1'
+    while(!done) {
+      plot ${dat d} using 1:2 with lines
+      pause 1
+    }
+  |] $
+    let
+      opts = MC.defaultOpts{
+               MC.eo_max_iter = max,
+               MC.eo_policyMonitor = Just d
+             }
+      p = emptyGenericPolicy
+      q = emptyQ
+    in do
+    (q,p) <- MC.ES.policy_iteraton opts gw (q,p) g
+    return ()
+
+
 

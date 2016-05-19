@@ -30,7 +30,7 @@ import MC.Types
 
 -- | Builds an episode which is a list of transitions, terminal transition goes
 -- to the head of Episode list
-episode :: (MC_Policy num pr s a p, MonadIO m, MonadRnd g m, Show s, Show a) =>
+episode :: (MC_Policy num pr s a p, MonadIO m, MonadRnd g m) =>
   pr num -> s -> a -> p -> m (Episode s a)
 episode pr s a p = do
   Episode . view _3 <$> do
@@ -71,23 +71,52 @@ makeLenses ''ES_State
 
 
 -- | Figure 5.4 pg 116
-policy_iteraton :: (MC_Problem_Show num pr s a, RandomGen g, MonadIO m, Fractional num, MC_Policy num pr s a (GenericPolicy s a), Ord a, Ord num)
-  => EvalOpts num s a -> pr num -> (Q num s a, GenericPolicy s a) -> g -> m ((Q num s a, GenericPolicy s a), g)
+policy_iteraton :: (RandomGen g, MonadIO m,
+                    Fractional num, MC_Policy num pr s a (GenericPolicy s a),
+                    Ord a, Ord num, Real num)
+  => EvalOpts num s a
+  -> pr num
+  -> (Q num s a, GenericPolicy s a)
+  -> g
+  -> m ((Q num s a, GenericPolicy s a), g)
+
 policy_iteraton EvalOpts{..} pr (q,p) = do
   runRndT $ do
   (view ess_q &&& view ess_p) <$> do
   flip execStateT (ES_State q p 0) $ do
   loop $ do
+
+    i <- use ess_iter
+    ess_iter %= (+1)
+    when (i > eo_max_iter-1) $ do
+      break ()
+
+    {- Episode generation -}
     s <- roll $ mc_state pr
     a <- RL.uniform $ Set.toList (mc_actions pr s)
     p <- use ess_p
     gs <- backtrack_fv pr <$> episode pr s a p
 
+    {- Policy evaluation -}
     forM_ (Map.toList gs) $ \(s,as) -> do
       forM_ (Map.toList as) $ \(a,g) -> do
         (ess_q . q_map) %= Map.unionWith (Map.unionWith combineAvg) (
                              Map.singleton s (Map.singleton a (singletonAvg g)))
 
+    {- Error reporting -}
+    case eo_policyMonitor of
+      Nothing -> return ()
+      Just mon -> do
+        push mon (fromInteger i) =<<
+          sum <$> do
+            forM (Map.toList gs) $ \(s,as) -> do
+              q_s <- uses (ess_q . q_map) (Map.toList . (!s))
+              let (abest, gmax) = maximumBy (compare `on` (current . snd)) q_s
+              sum <$> do
+                forM (Map.toList as) $ \(a,g) -> do
+                  pure (abs (current gmax - g))
+
+    {- Policy improvement -}
     forM_ (Map.toList gs) $ \(s,as) -> do
       q_s <- uses (ess_q . q_map) (Map.toList . (!s))
       (ess_p . p_map) %=
@@ -96,5 +125,4 @@ policy_iteraton EvalOpts{..} pr (q,p) = do
         in
         Map.insert s (Set.singleton (abest, 1%1))
 
-    break ()
 

@@ -38,6 +38,9 @@ data GenericPolicy s a = GenericPolicy {
 
 makeLenses ''GenericPolicy
 
+emptyGenericPolicy :: (Ord s, Ord a) => GenericPolicy s a
+emptyGenericPolicy = GenericPolicy mempty
+
 data Histogram a = Histogram {
     hist_map :: Map a Integer
   } deriving(Show)
@@ -95,4 +98,7 @@ data Q num s a = Q {
   } deriving(Show)
 
 makeLenses ''Q
+
+emptyQ :: (Ord s, Ord a) => Q num s a
+emptyQ = Q mempty
 
