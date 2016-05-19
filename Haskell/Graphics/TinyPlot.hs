@@ -8,6 +8,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.Trans
+import Control.Exception
 import Data.Char
 import System.IO
 import System.Process
@@ -44,8 +45,7 @@ withPlot :: String -> String -> IO a -> IO a
 withPlot ((-<.> ".gnuplot") -> name) plot h = do
   writeFile name plot
   p <- spawnProcess "gnuplot" [name]
-  r <- h
-  terminateProcess p
+  r <- h `finally` terminateProcess p
   return r
 
 
