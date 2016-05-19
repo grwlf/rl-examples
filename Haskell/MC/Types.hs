@@ -101,10 +101,11 @@ data EvalOpts num s a = EvalOpts {
   , eo_max_iter :: Integer
   -- ^ policy evaluation iteration limit, [1..maxBound]
   -- , eo_floating_precision :: Double
-  -- , eo_debug :: (StateVal num s, GenericPolicy s a) -> IO ()
+  , eo_debug :: Maybe ((StateVal num s, GenericPolicy s a) -> IO ())
   , eo_learnMonitor :: Maybe (Monitor num s)
   , eo_policyMonitor :: Maybe PlotData
-  } deriving(Show)
+  , eo_maxEpisodeLen :: Integer
+  }
 
 defaultOpts :: (Fractional num) => EvalOpts num s a
 defaultOpts = EvalOpts {
@@ -112,9 +113,10 @@ defaultOpts = EvalOpts {
   , eo_num_prec = 0 {- OK for Rationals -}
   , eo_max_iter = 10^3
   -- , eo_floating_precision = 1/10^9
-  -- , eo_debug = error "no debug specified"
+  , eo_debug = Nothing
   , eo_learnMonitor = Nothing
   , eo_policyMonitor = Nothing
+  , eo_maxEpisodeLen = 100
   }
 
 

@@ -9,12 +9,13 @@ module Monad where
 import Control.Monad.Identity
 import Imports
 
-
 class (Monad m, RandomGen g) => MonadRnd g m | m -> g where
   roll :: (g -> (a,g)) -> m a
-  getRndR :: (Random a) => (a,a) -> m a
   getGen :: m g
   putGen :: g -> m ()
+
+getRndR :: (MonadRnd g m, Random a) => (a,a) -> m a
+getRndR = roll . randomR
 
 newtype RndT g m a = RndT { unRndT :: StateT g m a }
     deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadFix)
@@ -28,24 +29,29 @@ runRndT r g = runStateT (unRndT r) g
 instance (Monad m, RandomGen g) => MonadRnd g (RndT g m) where
   getGen = RndT get
   putGen = RndT .  put
-  getRndR (x,y) = RndT . state $ randomR (x,y)
   roll f = RndT $ do
     g <- get
     (a,g') <- pure (f g)
     put g'
     return a
 
+rollM :: (MonadRnd g m) => (g -> m (a, g)) -> m a
+rollM mf = do
+  g <- getGen
+  (a,g') <- mf g
+  putGen g'
+  return a
+
 instance (MonadRnd g m) => MonadRnd g (StateT s m) where
   getGen = lift getGen
   putGen = lift . putGen
-  getRndR = lift . getRndR
   roll = lift . roll
 
 instance (MonadRnd g m) => MonadRnd g (Break r m) where
   getGen = lift getGen
   putGen = lift . putGen
-  getRndR = lift . getRndR
   roll = lift . roll
+
 
 
 -- | Extracted from MonadRandom AS-IS
@@ -65,11 +71,4 @@ fromList xs = do
 -- | Sample a value from a uniform distribution of a list of elements.
 uniform :: (MonadRnd g m) => [a] -> m a
 uniform = Monad.fromList . fmap (flip (,) 1)
-
-rollM :: (MonadRnd g m) => (g -> m (a, g)) -> m a
-rollM mf = do
-  g <- getGen
-  (a,g') <- mf g
-  putGen g'
-  return a
 

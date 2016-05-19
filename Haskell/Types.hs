@@ -102,7 +102,12 @@ makeLenses ''Q
 emptyQ :: (Ord s, Ord a) => Q num s a
 emptyQ = Q mempty
 
+q2v :: (Fractional num) => Q num s a -> StateVal num s
+q2v = StateVal . Map.map (sum . Map.map current) . view q_map
 
 trace1 :: (Show a) => a -> b -> b
 trace1 a b = trace (ppShow a) b
+
+traceM :: (Monad m, Show a) => a -> m ()
+traceM a = trace (ppShow a) (return ())
 

@@ -30,22 +30,33 @@ import MC.Types
 
 -- | Builds an episode which is a list of transitions, terminal transition goes
 -- to the head of Episode list
-episode :: (MC_Policy num pr s a p, MonadIO m, MonadRnd g m) =>
-  pr num -> s -> a -> p -> m (Episode s a)
-episode pr s a p = do
-  Episode . view _3 <$> do
-  flip execStateT (s, Just a, []) $ do
-  loop $ do
-    s <- use _1
-    a <- use _2 >>= \case
-      Just a -> pure a
-      Nothing -> roll $ mc_action pr s p
-    (s',term) <- roll $ mc_transition pr s a
-    _1 %= const s'
-    _2 %= const Nothing
-    _3 %= ((s,a,s'):)
-    when term $ do
-      break ()
+episode :: (MC_Policy num pr s a p,
+            MC_Problem_Show num pr s a,
+            MonadIO m, MonadRnd g m) =>
+  EvalOpts num s a -> pr num -> s -> a -> p -> m (Maybe (Episode s a))
+episode EvalOpts{..} pr s a p = do
+  e <- do
+    flip execStateT (s, Just a, [], False) $ do
+    loop $ do
+      s <- use _1
+      a <- use _2 >>=
+            \case
+              Just a -> pure a
+              Nothing -> roll $ mc_action pr s p
+      (s',fin) <- roll $ mc_transition pr s a
+      _1 %= const s'
+      _2 %= const Nothing
+      _3 %= ((s,a,s'):)
+      _4 %= const fin
+
+      len <- uses _3 (toInteger . length)
+      when (fin || len > eo_maxEpisodeLen) $ do
+        break ()
+
+  if view _4 e then
+    return $ Just (Episode $ view _3 e)
+  else
+    return Nothing
 
 -- Backtrack rewards, first visit counts
 backtrack_fv :: (MC_Problem num pr s a, Ord a) => pr num -> Episode s a -> Map s (Map a num)
@@ -69,8 +80,10 @@ makeLenses ''ES_State
 
 
 -- | Figure 5.4 pg 116
-policy_iteraton :: (RandomGen g, MonadIO m,
-                    Fractional num, MC_Policy num pr s a (GenericPolicy s a),
+policy_iteraton :: (MC_Policy num pr s a (GenericPolicy s a),
+                    MC_Problem_Show num pr s a,
+                    RandomGen g, MonadIO m,
+                    Fractional num,
                     Ord a, Ord num, Real num)
   => EvalOpts num s a
   -> pr num
@@ -78,7 +91,7 @@ policy_iteraton :: (RandomGen g, MonadIO m,
   -> g
   -> m ((Q num s a, GenericPolicy s a), g)
 
-policy_iteraton EvalOpts{..} pr (q,p) = do
+policy_iteraton o@EvalOpts{..} pr (q,p) = do
   runRndT $ do
   (view ess_q &&& view ess_p) <$> do
   flip execStateT (ES_State q p 0) $ do
@@ -93,34 +106,59 @@ policy_iteraton EvalOpts{..} pr (q,p) = do
     s <- roll $ mc_state_nonterm pr
     a <- RL.uniform $ Set.toList (mc_actions pr s)
     p <- use ess_p
-    gs <- backtrack_fv pr <$> episode pr s a p
+    me <- episode o pr s a p
 
-    {- Policy evaluation -}
-    forM_ (Map.toList gs) $ \(s,as) -> do
-      forM_ (Map.toList as) $ \(a,g) -> do
-        (ess_q . q_map) %= Map.unionWith (Map.unionWith combineAvg) (
-                             Map.singleton s (Map.singleton a (singletonAvg g)))
+    case me of
 
-    {- Error reporting -}
-    case eo_policyMonitor of
-      Nothing -> return ()
-      Just mon -> do
-        push mon (fromInteger i) =<<
-          sum <$> do
-            forM (Map.toList gs) $ \(s,as) -> do
-              q_s <- uses (ess_q . q_map) (Map.toList . (!s))
-              let (abest, gmax) = maximumBy (compare `on` (current . snd)) q_s
+      Nothing -> do
+        traceM "Bad episode"
+
+      Just e -> do
+        gs <- backtrack_fv pr <$> pure e
+
+        when (i`mod`1000 == 0) $ do
+          case eo_debug of
+            Nothing -> return ()
+            Just dbg -> do
+              v <- uses ess_q q2v
+              liftIO (dbg (v,p))
+
+        {- Policy evaluation -}
+        forM_ (Map.toList gs) $ \(s,as) -> do
+          forM_ (Map.toList as) $ \(a,g) -> do
+            (ess_q . q_map) %= Map.unionWith (Map.unionWith combineAvg) (
+                                 Map.singleton s (Map.singleton a (singletonAvg g)))
+
+        {- Error reporting -}
+        case eo_policyMonitor of
+          Nothing -> return ()
+          Just mon -> do
+            err <- do
               sum <$> do
-                forM (Map.toList as) $ \(a,g) -> do
-                  pure (abs (current gmax - g))
+                forM (Map.toList gs) $ \(s,as) -> do
+                  q_s <- uses (ess_q . q_map) (Map.toList . (!s))
+                  let (abest, gmax) = maximumBy (compare `on` (current . snd)) q_s
+                  sum <$> do
+                    forM (Map.toList as) $ \(a,g) -> do
+                      pure (abs (current gmax - g))
 
-    {- Policy improvement -}
-    forM_ (Map.toList gs) $ \(s,as) -> do
-      q_s <- uses (ess_q . q_map) (Map.toList . (!s))
-      (ess_p . p_map) %=
-        let
-          (abest, nmax) = maximumBy (compare `on` (current . snd)) q_s
-        in
-        Map.insert s (Set.singleton (abest, 1%1))
+            -- when (err > 1) $ do
+            --   case eo_debug of
+            --     Nothing -> return ()
+            --     Just dbg -> do
+            --       traceM i
+            --       v <- uses ess_q q2v
+            --       liftIO (dbg (v,p))
+
+            push mon (fromInteger i) err
+
+        {- Policy improvement -}
+        forM_ (Map.toList gs) $ \(s,as) -> do
+          q_s <- uses (ess_q . q_map) (Map.toList . (!s))
+          (ess_p . p_map) %=
+            let
+              (abest, nmax) = maximumBy (compare `on` (current . snd)) q_s
+            in
+            Map.insert s (Set.singleton (abest, 1%1))
 
 

@@ -17,8 +17,8 @@ module Imports (
   , module Data.Maybe
   , module Data.Set
   , module Data.Function
-  , module Debug.Trace
   , module Data.Foldable
+  , module Debug.Trace
   , module Prelude
   , module System.Random
   , module System.Random.Mersenne.Pure64
@@ -26,7 +26,6 @@ module Imports (
   , module Text.Heredoc
   , module Text.Show.Pretty
   , module Graphics.TinyPlot
-  , module Debug.Trace
 )
 
 where
@@ -40,7 +39,7 @@ import Control.Monad.Trans
 import Control.Monad.State.Strict
 import Control.Monad.Random
 import Control.Break
-import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3)
+import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3, _4, _5, _6)
 import Data.Ratio
 import Data.Tuple
 import Data.List hiding (break)
@@ -50,9 +49,9 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set,member)
 import qualified Data.Set as Set
 import Data.Maybe
-import Debug.Trace
 import Data.Foldable
 import Data.Function
+import Debug.Trace hiding(traceM)
 import Prelude hiding(break)
 import System.Random
 import System.Random.Mersenne.Pure64
@@ -60,6 +59,5 @@ import Text.Printf
 import Text.Heredoc
 import Text.Show.Pretty
 import Graphics.TinyPlot
-import Debug.Trace
 
 

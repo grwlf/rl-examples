@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 
 import Types as RL
 import DP as RL
-import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..))
+import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..))
 import qualified MC
 import qualified MC.ES
 import Prelude hiding (break)
@@ -101,12 +101,20 @@ showStateVal (GW (sx,sy) _) StateVal{..} = liftIO $ do
           printf "  ?   "
     printf "\n"
 
-showPolicy :: (MonadIO m, DP_Policy num p GW Point Action) => GW num -> p -> m ()
-showPolicy pr@(GW (sx,sy) _) p = liftIO $ do
+showGenericPolicy :: (MonadIO m,
+                      DP_Policy num (GenericPolicy Point Action) GW Point Action)
+  => GW num
+  -> GenericPolicy Point Action
+  -> m ()
+showGenericPolicy pr@(GW (sx,sy) _) p@GenericPolicy{..} = liftIO $ do
   forM_ [0..sy-1] $ \y -> do
     forM_ [0..sx-1] $ \x -> do
-      let acts = Set.map fst $ Set.filter (\(a,pa) -> pa > 0) $ rlp_action p pr (x,y)
-      printf "% 4s " (showActions acts)
+      case Map.lookup (x,y) (view p_map p) of
+        Nothing ->  do
+          printf "  ?   "
+        Just ap -> do
+          let acts = Set.map fst $ Set.filter (\(a,pa) -> pa > 0) ap
+          printf "% 4s " (showActions acts)
     printf "\n"
 
 -- DP approach
@@ -118,7 +126,7 @@ example_4_1_dp gw =
   v <- policy_eval gw GWRandomPolicy opts (zero_sate_values gw)
   showStateVal gw v
   p' <- policy_improve gw opts v
-  showPolicy gw p'
+  showGenericPolicy gw p'
   return v
 
 
@@ -128,6 +136,7 @@ example_4_1_dp gw =
 {- MC instances -}
 
 instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
+
   mc_state_nonterm gw@(GW (sx,sy) exits) g =
     let
       (p,g') = flip runRand g $ do
@@ -166,7 +175,9 @@ instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandom
   mc_action pr s p =
     runRand $ uniform [minBound .. maxBound]
 
+
 instance (Fractional num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
+instance (Fractional num, Ord num, Show num) => MC_Problem_Show num GW (Int,Int) Action
 
 gw :: GW Rational
 gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
@@ -244,7 +255,7 @@ example_4_1_mc gw = do
 {- Uniform random policy evaluation using MC method -}
 example_4_1_iter :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_iter gw = do
-  let max = 20000
+  let max = 200000
   let g = pureMT 42
 
   d <- newData "mc"
@@ -264,7 +275,10 @@ example_4_1_iter gw = do
     let
       opts = MC.defaultOpts{
                MC.eo_max_iter = max,
-               MC.eo_policyMonitor = Just d
+               MC.eo_policyMonitor = Just d,
+               MC.eo_debug = Just $ \(v,p) -> do
+                  showStateVal gw v
+                  showGenericPolicy gw p
              }
       p = emptyGenericPolicy
       q = emptyQ
