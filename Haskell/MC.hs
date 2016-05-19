@@ -48,13 +48,11 @@ episode pr s p g = do
   loop $ do
     let rnd m = lift $ lift $ liftRandT $ (\g -> return $ m g)
     s <- gets fst
-    case (mc_is_terminal pr s) of
-      True -> do
-        break ()
-      False -> do
-        a <- rnd $ mc_action pr s p
-        s' <- rnd $ mc_transition pr s a
-        modify $ const s' *** ((s,a,s'):)
+    a <- rnd $ mc_action pr s p
+    (s', term) <- rnd $ mc_transition pr s a
+    modify $ const s' *** ((s,a,s'):)
+    when term $ do
+      break ()
 
 -- Backtrack rewards, first visit counts
 backtrack_fv :: (MC_Problem num pr s a) => pr num -> Episode s a -> Map s num
@@ -98,7 +96,7 @@ policy_eval EvalOpts{..} pr p = do
       break ()
 
     let rnd = lift . lift . liftRandT
-    ss <- rnd $ return . mc_state pr
+    ss <- rnd $ return . mc_state_nonterm pr
     es <- rnd $ episode pr ss p
     gs <- pure $ backtrack_fv pr es
 

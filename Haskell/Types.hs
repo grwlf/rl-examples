@@ -102,3 +102,7 @@ makeLenses ''Q
 emptyQ :: (Ord s, Ord a) => Q num s a
 emptyQ = Q mempty
 
+
+trace1 :: (Show a) => a -> b -> b
+trace1 a b = trace (ppShow a) b
+

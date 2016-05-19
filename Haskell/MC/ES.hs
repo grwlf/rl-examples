@@ -37,17 +37,15 @@ episode pr s a p = do
   flip execStateT (s, Just a, []) $ do
   loop $ do
     s <- use _1
-    case (mc_is_terminal pr s) of
-      True -> do
-        break ()
-      False -> do
-        a <- use _2 >>= \case
-          Just a -> pure a
-          Nothing -> roll $ mc_action pr s p
-        s' <- roll $ mc_transition pr s a
-        _1 %= const s'
-        _2 %= const Nothing
-        _3 %= ((s,a,s'):)
+    a <- use _2 >>= \case
+      Just a -> pure a
+      Nothing -> roll $ mc_action pr s p
+    (s',term) <- roll $ mc_transition pr s a
+    _1 %= const s'
+    _2 %= const Nothing
+    _3 %= ((s,a,s'):)
+    when term $ do
+      break ()
 
 -- Backtrack rewards, first visit counts
 backtrack_fv :: (MC_Problem num pr s a, Ord a) => pr num -> Episode s a -> Map s (Map a num)
@@ -92,7 +90,7 @@ policy_iteraton EvalOpts{..} pr (q,p) = do
       break ()
 
     {- Episode generation -}
-    s <- roll $ mc_state pr
+    s <- roll $ mc_state_nonterm pr
     a <- RL.uniform $ Set.toList (mc_actions pr s)
     p <- use ess_p
     gs <- backtrack_fv pr <$> episode pr s a p

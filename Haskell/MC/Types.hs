@@ -34,11 +34,10 @@ import qualified DP as DP
 -}
 
 class (Fractional num, Ord s) => MC_Problem num pr s a | pr -> s , pr -> a where
-  mc_state :: (RandomGen g) => pr num -> g -> (s,g)
+  mc_state_nonterm :: (RandomGen g) => pr num -> g -> (s,g)
   mc_actions :: pr num -> s -> Set a
-  mc_transition :: (RandomGen g) => pr num -> s -> a -> g -> (s,g)
+  mc_transition :: (RandomGen g) => pr num -> s -> a -> g -> ((s,Bool),g)
   mc_reward :: pr num -> s -> a -> s -> num
-  mc_is_terminal :: pr num -> s -> Bool
 
 class (MC_Problem num pr s a) => MC_Policy num pr s a p where
   mc_action :: (RandomGen g) => pr num -> s -> p -> g -> (a,g)
@@ -50,13 +49,13 @@ class (MC_Policy num pr s a p, Show s, Show a, Show (pr num), Show num, Show p) 
 
 instance MC_Problem num pr s a => MC_Policy num pr s a (GenericPolicy s a) where
   mc_action pr s p = runRnd $ do
-    case mc_is_terminal pr s of
-      True -> error "mc_action(1): attempt to query terminate state"
-      False ->
-        case Map.lookup s (view p_map p) of
-          Nothing -> RL.uniform (Set.toList (mc_actions pr s))
-          Just as -> RL.fromList (Set.toList as)
+    case Map.lookup s (view p_map p) of
+      Nothing -> RL.uniform (Set.toList (mc_actions pr s))
+      Just as -> RL.fromList (Set.toList as)
 
+{-
+-- FIXME: arrange state terminality concepts between MC and DP
+--
 -- DP compatibility adapter
 data MC a s pr num = MC (pr num)
   deriving(Show)
@@ -75,6 +74,7 @@ instance (DP_Problem num pr s a, DP_Policy num p pr s a) => MC_Policy num (MC a 
       False -> runRnd $ RL.fromList $ Set.toList $ rlp_action p pr s
 
 instance (DP_Policy num p pr s a, Show num, Show a, Show s, Show p, Show (pr num)) => MC_Policy_Show num (MC a s pr) s a p
+-}
 
 {-
  _____

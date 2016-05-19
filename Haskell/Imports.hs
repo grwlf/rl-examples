@@ -23,8 +23,10 @@ module Imports (
   , module System.Random
   , module System.Random.Mersenne.Pure64
   , module Text.Printf
-  , module Graphics.TinyPlot
   , module Text.Heredoc
+  , module Text.Show.Pretty
+  , module Graphics.TinyPlot
+  , module Debug.Trace
 )
 
 where
@@ -55,7 +57,9 @@ import Prelude hiding(break)
 import System.Random
 import System.Random.Mersenne.Pure64
 import Text.Printf
-import Graphics.TinyPlot
 import Text.Heredoc
+import Text.Show.Pretty
+import Graphics.TinyPlot
+import Debug.Trace
 
 

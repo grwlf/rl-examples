@@ -15,8 +15,8 @@ import qualified Data.Set as Set
 
 import Types as RL
 import DP as RL
-import MC(MC_Problem(..), MC_Policy(..), MC(..), MC_Policy_Show(..))
-import qualified MC as MC
+import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..))
+import qualified MC
 import qualified MC.ES
 import Prelude hiding (break)
 
@@ -128,18 +128,21 @@ example_4_1_dp gw =
 {- MC instances -}
 
 instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
-  mc_state p@(GW (sx,sy) _) g =
-    flip runRand g $ do
-      x <- getRandomR (0,sx-1)
-      y <- getRandomR (0,sy-1)
-      return (x,y)
+  mc_state_nonterm gw@(GW (sx,sy) exits) g =
+    let
+      (p,g') = flip runRand g $ do
+            x <- getRandomR (0,sx-1)
+            y <- getRandomR (0,sy-1)
+            return (x,y)
+    in
+      -- FIXME: try to replace recursion with direct selection
+      case p `member` exits of
+        True -> mc_state_nonterm gw g'
+        False -> (p,g')
 
-  mc_actions pr s =
-    case mc_is_terminal pr s of
-      True -> Set.empty
-      False -> Set.fromList [minBound .. maxBound]
+  mc_actions pr s = Set.fromList [minBound .. maxBound]
 
-  mc_transition (GW (sx,sy) _) (x,y) a g =
+  mc_transition (GW (sx,sy) exits) (x,y) a g =
     let
       check (x',y') =
         if x' >= 0 && x' < sx && y' >= 0 && y' < sy then
@@ -147,22 +150,21 @@ instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
         else
           (x,y)
       (_::Integer, g') = random g
+
+      p' = case a of
+                 L -> check (x-1,y)
+                 R -> check (x+1,y)
+                 U -> check (x,y-1)
+                 D -> check (x,y+1)
+      term = p' `member` exits
     in
-    (case a of
-       L -> check (x-1,y)
-       R -> check (x+1,y)
-       U -> check (x,y-1)
-       D -> check (x,y+1), g')
+    ((p',term), g')
 
   mc_reward (GW (sx,sy) _) s a s' = -1
 
-  mc_is_terminal (GW _ exits) s = Set.member s exits
-
 instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
   mc_action pr s p =
-    case mc_is_terminal pr s of
-      True -> error "mc_action(3): attempt to query terminate state"
-      False -> runRand $ uniform [minBound .. maxBound]
+    runRand $ uniform [minBound .. maxBound]
 
 instance (Fractional num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
 
@@ -184,7 +186,7 @@ forkThread proc = do
 {- Uniform random policy evaluation using MC method -}
 example_4_1_mc :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_mc gw = do
-  let max = 20000
+  let max = 200000
   let g = pureMT 42
 
   d1 <- newData "mc1"
@@ -206,6 +208,7 @@ example_4_1_mc gw = do
   v_dp <- example_4_1_dp gw
 
   {- DP-to-MC Adapter -}
+  {-
   t1 <- forkThread $
     let
       opts = MC.defaultOpts{
@@ -218,6 +221,7 @@ example_4_1_mc gw = do
     in do
     (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy g
     showStateVal gw v
+  -}
 
   {- Native MC implementation -}
   t2 <- forkThread $
@@ -233,7 +237,7 @@ example_4_1_mc gw = do
     (v,_) <- MC.policy_eval opts gw GWRandomPolicy g
     showStateVal gw v
 
-  mapM_ takeMVar [t1,t2]
+  mapM_ takeMVar [t2]
 
 
 

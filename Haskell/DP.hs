@@ -40,6 +40,7 @@ class (Ord s, Fractional num, Ord num) => DP_Problem num pr s a | pr -> s , pr -
   rl_actions :: pr num -> s -> Set a
   rl_transitions :: pr num -> s -> a -> Set (s, Probability)
   rl_reward :: pr num -> s -> a -> s -> num
+  -- FIXME: think about splitting terminal and non-terminal states
   rl_terminal_states :: pr num -> Set s
 
 -- | Dynamic Programming Policy. Parameters have same meaning as in DP_Problem,
