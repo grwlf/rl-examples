@@ -10,6 +10,7 @@ module Imports (
   , module Control.Monad.Random
   , module Control.Break
   , module Control.Lens
+  , module Data.Bits
   , module Data.Ratio
   , module Data.Tuple
   , module Data.List
@@ -40,6 +41,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Random
 import Control.Break
 import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3, _4, _5, _6)
+import Data.Bits
 import Data.Ratio
 import Data.Tuple
 import Data.List hiding (break)
