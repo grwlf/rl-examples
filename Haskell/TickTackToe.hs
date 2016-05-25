@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -21,13 +22,16 @@ data Cell = X | O | E
 
 type Player = Cell
 
-nextCell X = O
-nextCell O = X
-nextCell E = error "nextCell E is undefined"
+nextPlayer X = O
+nextPlayer O = X
+nextPlayer E = error "nextPlayer: result for E is undefined"
 
 data Board = Board {
-  bo_cells :: Map (Int,Int) Cell
+    bo_cells :: Map (Int,Int) Cell
+  , bo_wins :: Player
 } deriving(Show,Ord,Eq)
+
+bo_term Board{..} = bo_wins == X || bo_wins == O
 
 type Action = (Int,Int)
 
@@ -47,30 +51,44 @@ at Board{..} a = fromMaybe E (Map.lookup a bo_cells)
 
 set a c Board{..} = Board (Map.insert a c bo_cells)
 
+move :: Board -> Player -> Action -> Board
+move Board{..} p a =
+  case bo_wins of
+    E ->
+      let
+        bo_cells' = Map.insert a p bo_cells
+        bo_term' = or $ flip map (board_wincheck ! a) $ \r ->
+                      all (==p) (map (\ a -> fromMaybe E $ Map.lookup a bo_cells') r)
+      in
+      Board bo_cells' (if bo_term' then p else E)
+    _ -> error $ "move called on terminal board"
+
 emptyBoard :: Board
-emptyBoard = Board Map.empty
+emptyBoard = Board Map.empty E
 
 boardFree :: Board -> [Action]
-boardFree Board{..} = board_points List.\\ (Map.keys bo_cells)
+boardFree Board{..} = board_points \\ (Map.keys bo_cells)
 
-isTerminal :: Board -> Cell -> Action -> Bool
-isTerminal b c a =
-  let
-    b' = set a c b
-  in
-  or $
-    flip map (board_wincheck ! a) $ \r ->
-      all (==c) (map (b'`at`) r)
+-- isTerminal :: Board -> Cell -> Action -> Bool
+-- isTerminal b c a =
+--   let
+--     b' = set a c b
+--   in
+--   or $
+--     flip map (board_wincheck ! a) $ \r ->
+--       all (==c) (map (b'`at`) r)
 
 -- Same as boardFree + non-terminal
-boardFreeSafe :: Player -> Board -> [Action]
-boardFreeSafe c b = filter (not . (isTerminal b c)) (boardFree b)
+-- boardFreeSafe :: Player -> Board -> [Action]
+-- boardFreeSafe c b = filter (not . (isTerminal b c)) (boardFree b)
 
+-- FIXME: eliminate potantional forever loop
 randomBoard :: (RandomGen g) => Player -> g -> (Board, g)
 randomBoard p g =
   let
     check ((_,b,True),g') = (b,g')
-    check ((_,_,False),g') = randomBoard p g'
+    check ((_,_,False),g') =
+      trace "randomBoard diverged at " $ randomBoard p g'
   in do
   check $
     flip runRnd g $ do
@@ -82,15 +100,16 @@ randomBoard p g =
           O -> Monad.uniform $ filter even [0 .. board_nx*board_ny-1])
       forM_ [0..nmoves] $ \m -> do
         player <- use _1
-        avail <- uses _2 (boardFreeSafe player)
-        case null avail of
+        board <- use _2
+        let b's = filter ((==E) . bo_wins) $ map (move board player) (boardFree board)
+        case null b's of
           True -> do
             _3 %= const False
             break ()
           False -> do
-            move <- Monad.uniform avail
-            _1 %= nextCell
-            _2 %= set move player
+            b' <- Monad.uniform b's
+            _1 %= nextPlayer
+            _2 %= const b'
       break ()
 
 -- randomBoard :: PureMT -> (Board, PureMT)
@@ -119,25 +138,56 @@ showBoard b =
 
 -- | TickTackToe => T
 data T num = T {
-    g_oppoment_val :: StateVal num Board
-  , g_opponent :: Cell
+    g_vals :: Map Player (Q num Board Action)
+  , g_player :: Player
 } deriving(Show)
+
+bestAction :: (Fractional num, Ord num, RandomGen g)
+  => T num -> Board -> Player -> g -> Maybe (Action, g)
+bestAction T{..} b p g =
+  let
+    macts = Map.lookup b $ view q_map $ g_vals ! p
+  in
+  case macts of
+    Just as -> Just (fst $ maximumBy (compare `on` (current . snd)) (Map.toList as), g)
+    Nothing ->
+      case boardFree b of
+        [] -> Nothing
+        x -> Just $ flip runRnd g $ Monad.uniform x
 
 
 instance (Fractional num, Ord num) => MC_Problem num T Board Action where
 
-  mc_state_nonterm T{..} = randomBoard g_opponent
+  mc_state_nonterm T{..} = randomBoard g_player
 
   mc_actions T{..} = Set.fromList . boardFree
 
-  mc_transition T{..} b a g =
-    {- Applying action -}
-    {- Check win|loose -}
-    {- Make opponent's move according to its current state-value -}
-    undefined
+  mc_transition t@T{..} b a g =
+    let
+      {- Applying action -}
+      b' = move b g_player a
+    in
+    case bo_term b' of
+      True ->
+        {- Win -}
+        ((b', True), g)
+      False ->
+        let
+          p' = nextPlayer g_player
+        in
+        case bestAction t b' p' g of
+          Nothing ->
+            {- Draw -}
+            ((b', True), g)
+          Just (a',g') ->
+            {- Make opponent's move according to their current state-value -}
+            let
+              b'' = move b' p' a'
+            in
+            {- Next|Loose -}
+            ((b'', bo_term b''), g')
 
   mc_reward T{..} b a b' =
-    {- 1 if win -}
-    {- 0 otherwise -}
-    undefined
+    if | bo_wins b' == g_player -> 1
+       | otherwise -> 0
 
