@@ -82,17 +82,29 @@ diffVal :: (Ord s, Fractional num) => StateVal num s -> (Map s (Avg num)) -> num
 diffVal (v_map -> tgt) src = sum $ Map.intersectionWith (\a b -> abs $ a - (current b)) tgt src
 
 
+data E_Ext num s = E_Ext {
+    eo_learnMonitor :: Maybe (Monitor num s)
+}
+
+type EvalOpts num s = Opts num (E_Ext num s)
+
+defaultEvalOpts :: (Fractional num) => EvalOpts num s
+defaultEvalOpts = defaultOpts E_Ext {
+    eo_learnMonitor = Nothing
+  }
+
+
 -- Monte carlo policy evaluation, Figure 5.1. pg 109
 policy_eval :: (MC_Policy_Show num pr s a p, RandomGen g, MonadIO m, Real num)
-  => EvalOpts num s a -> pr num -> p -> g -> m (StateVal num s, g)
-policy_eval EvalOpts{..} pr p = do
+  => EvalOpts num s -> pr num -> p -> g -> m (StateVal num s, g)
+policy_eval Opts{..} pr p = do
   runRandT $ do
   StateVal . Map.map current . view es_v <$> do
   flip execStateT initialEvalState $ do
   loop $ do
     i <- use es_iter
     es_iter %= (+1)
-    when (i > eo_max_iter-1) $ do
+    when (i > o_max_iter-1) $ do
       break ()
 
     let rnd = lift . lift . liftRandT
@@ -104,7 +116,7 @@ policy_eval EvalOpts{..} pr p = do
       v <- fromMaybe initialAvg <$> uses es_v (Map.lookup s)
       es_v %= Map.insert s (meld v g)
 
-    case eo_learnMonitor of
+    case eo_learnMonitor o_ext of
       Nothing -> return ()
       Just Monitor{..} -> do
         v <- use es_v

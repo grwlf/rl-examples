@@ -93,41 +93,32 @@ episode_forward Episode{..} = reverse ep_list
 episode_backward Episode{..} = ep_list
 
 
-data EvalOpts num s a = EvalOpts {
-    eo_gamma :: num
+data Opts num ext = Opts {
+    o_gamma :: num
   -- ^ Forgetness
-  , eo_num_prec :: num
+  , o_num_prec :: num
   -- ^ policy evaluation precision
-  , eo_max_iter :: Integer
+  , o_max_iter :: Integer
   -- ^ policy evaluation iteration limit, [1..maxBound]
-  -- , eo_floating_precision :: Double
-  , eo_debug :: Maybe ((StateVal num s, GenericPolicy s a) -> IO ())
-  , eo_learnMonitor :: Maybe (Monitor num s)
-  , eo_policyMonitor :: Maybe PlotData
-  , eo_maxEpisodeLen :: Integer
+  -- , o_floating_precision :: Double
+  -- , o_debug :: Maybe ((StateVal num s, GenericPolicy s a) -> IO ())
+  -- , o_learnMonitor :: Maybe (Monitor num s)
+  -- , o_policyMonitor :: Maybe PlotData
+  , o_maxEpisodeLen :: Integer
+  , o_ext :: ext
   }
 
-defaultOpts :: (Fractional num) => EvalOpts num s a
-defaultOpts = EvalOpts {
-    eo_gamma = 0.9
-  , eo_num_prec = 0 {- OK for Rationals -}
-  , eo_max_iter = 10^3
-  -- , eo_floating_precision = 1/10^9
-  , eo_debug = Nothing
-  , eo_learnMonitor = Nothing
-  , eo_policyMonitor = Nothing
-  , eo_maxEpisodeLen = 100
+defaultOpts :: (Fractional num) => ext -> Opts num ext
+defaultOpts defExt = Opts {
+    o_gamma = 0.9
+  , o_num_prec = 0 {- OK for Rationals -}
+  , o_max_iter = 10^3
+  -- , o_floating_precision = 1/10^9
+  -- , o_debug = Nothing
+  -- , o_learnMonitor = Nothing
+  -- , o_policyMonitor = Nothing
+  , o_maxEpisodeLen = 100
+  , o_ext = defExt
   }
-
-
-data Monitor num s = Monitor {
-    mon_target :: StateVal num s
-  , mon_data :: PlotData
-  } deriving(Show)
-
-monitorNew :: (MonadIO m) => StateVal num s -> m (Monitor num s)
-monitorNew tgt = liftIO $
-  Monitor tgt <$> do
-    newData "MC"
 
 

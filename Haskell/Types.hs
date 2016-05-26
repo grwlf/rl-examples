@@ -111,3 +111,15 @@ trace1 a b = trace (ppShow a) b
 traceM :: (Monad m, Show a) => a -> m ()
 traceM a = trace (ppShow a) (return ())
 
+
+
+data Monitor num s = Monitor {
+    mon_target :: StateVal num s
+  , mon_data :: PlotData
+  } deriving(Show)
+
+monitorNew :: (MonadIO m) => StateVal num s -> m (Monitor num s)
+monitorNew tgt = liftIO $
+  Monitor tgt <$> do
+    newData "MC"
+

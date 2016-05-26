@@ -14,8 +14,8 @@ import Prelude hiding(break)
 
 import Monad
 import Types
+import MC.Types as MC
 import MC.ES
-import MC.Types
 
 data Cell = X | O | E
   deriving(Show,Eq,Ord)
@@ -88,7 +88,8 @@ randomBoard p g =
   let
     check ((_,b,True),g') = (b,g')
     check ((_,_,False),g') =
-      trace "randomBoard diverged at " $ randomBoard p g'
+      trace "randomBoard diverged" $
+      randomBoard p g'
   in do
   check $
     flip runRnd g $ do
@@ -112,22 +113,6 @@ randomBoard p g =
             _2 %= const b'
       break ()
 
--- randomBoard :: PureMT -> (Board, PureMT)
--- randomBoard g =
---   let
---     (w,g') = randomWord64 g
---   in
---   (Board $
---   Map.fromList $ concat $
---   flip map board_points $ \(x,y) ->
---     let
---       pos = y*board_nx + x
---     in
---     if testBit w (2*pos) then
---         if testBit w (2*pos+1) then [((x,y),X)] else [((x,y),O)]
---     else []
---   ,g')
-
 showBoard :: Board -> IO ()
 showBoard b =
   forM_ [0..board_ny-1] $ \y -> do
@@ -138,15 +123,15 @@ showBoard b =
 
 -- | TickTackToe => T
 data T num = T {
-    g_vals :: Map Player (Q num Board Action)
-  , g_player :: Player
+    t_vals :: Map Player (Q num Board Action)
+  , t_player :: Player
 } deriving(Show)
 
 bestAction :: (Fractional num, Ord num, RandomGen g)
   => T num -> Board -> Player -> g -> Maybe (Action, g)
 bestAction T{..} b p g =
   let
-    macts = Map.lookup b $ view q_map $ g_vals ! p
+    macts = Map.lookup b $ view q_map $ t_vals ! p
   in
   case macts of
     Just as -> Just (fst $ maximumBy (compare `on` (current . snd)) (Map.toList as), g)
@@ -158,14 +143,14 @@ bestAction T{..} b p g =
 
 instance (Fractional num, Ord num) => MC_Problem num T Board Action where
 
-  mc_state_nonterm T{..} = randomBoard g_player
+  mc_state_nonterm T{..} = randomBoard t_player
 
   mc_actions T{..} = Set.fromList . boardFree
 
   mc_transition t@T{..} b a g =
     let
       {- Applying action -}
-      b' = move b g_player a
+      b' = move b t_player a
     in
     case bo_term b' of
       True ->
@@ -173,7 +158,7 @@ instance (Fractional num, Ord num) => MC_Problem num T Board Action where
         ((b', True), g)
       False ->
         let
-          p' = nextPlayer g_player
+          p' = nextPlayer t_player
         in
         case bestAction t b' p' g of
           Nothing ->
@@ -188,6 +173,46 @@ instance (Fractional num, Ord num) => MC_Problem num T Board Action where
             ((b'', bo_term b''), g')
 
   mc_reward T{..} b a b' =
-    if | bo_wins b' == g_player -> 1
+    if | bo_wins b' == t_player -> 1
        | otherwise -> 0
+
+
+instance (Fractional num, Ord num, Show num) => MC_Problem_Show num T Board Action
+
+
+t1 = T {
+    t_vals = Map.fromList [
+        (X,emptyQ),
+        (O,emptyQ)
+      ],
+    t_player = X
+  }
+
+example :: (Show num, Fractional num, Ord num, Real num) => T num -> IO ()
+example t =
+  let
+    max = 10000
+    g = pureMT 33
+
+    opts = MC.ES.defaultOpts {
+             o_max_iter = max
+           , o_ext = ES_Ext {
+              eo_debug = \ES_State{..} -> do
+                when (0 == _ess_iter `mod` 100) $ do
+                  traceM _ess_iter
+             }
+           }
+
+    q = emptyQ
+    p = emptyGenericPolicy
+  in do
+  (q',p') <- MC.ES.policy_iteraton opts t (q,p) g
+
+  traceM q'
+
+  return ()
+
+
+
+
 

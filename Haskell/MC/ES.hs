@@ -26,15 +26,15 @@ import Monad as RL
 import DP (DP_Problem(..), DP_Policy(..))
 import qualified DP as DP
 
-import MC.Types
+import MC.Types as MC
 
 -- | Builds an episode which is a list of transitions, terminal transition goes
 -- to the head of Episode list
 episode :: (MC_Policy num pr s a p,
             MC_Problem_Show num pr s a,
             MonadIO m, MonadRnd g m) =>
-  EvalOpts num s a -> pr num -> s -> a -> p -> m (Maybe (Episode s a))
-episode EvalOpts{..} pr s a p = do
+  Opts num ext -> pr num -> s -> a -> p -> m (Maybe (Episode s a))
+episode Opts{..} pr s a p = do
   e <- do
     flip execStateT (s, Just a, [], False) $ do
     loop $ do
@@ -50,7 +50,7 @@ episode EvalOpts{..} pr s a p = do
       _4 %= const fin
 
       len <- uses _3 (toInteger . length)
-      when (fin || len > eo_maxEpisodeLen) $ do
+      when (fin || len > o_maxEpisodeLen) $ do
         break ()
 
   if view _4 e then
@@ -79,27 +79,41 @@ data ES_State num s a = ES_State {
 makeLenses ''ES_State
 
 
+data ES_Ext num s a = ES_Ext {
+  eo_debug :: ES_State num s a -> IO ()
+}
+
+type ES_Opts num s a = Opts num (ES_Ext num s a)
+
+defaultOpts :: (Fractional num) => ES_Opts num s a
+defaultOpts = MC.defaultOpts ES_Ext{
+  eo_debug = const (return ())
+}
+
 -- | Figure 5.4 pg 116
 policy_iteraton :: (MC_Policy num pr s a (GenericPolicy s a),
                     MC_Problem_Show num pr s a,
                     RandomGen g, MonadIO m,
                     Fractional num,
                     Ord a, Ord num, Real num)
-  => EvalOpts num s a
+  => ES_Opts num s a
   -> pr num
   -> (Q num s a, GenericPolicy s a)
   -> g
   -> m ((Q num s a, GenericPolicy s a), g)
 
-policy_iteraton o@EvalOpts{..} pr (q,p) = do
+policy_iteraton o@Opts{..} pr (q,p) = do
   runRndT $ do
   (view ess_q &&& view ess_p) <$> do
   flip execStateT (ES_State q p 0) $ do
   loop $ do
 
+    {- Debug -}
+    get >>= liftIO . (eo_debug o_ext)
+
     i <- use ess_iter
     ess_iter %= (+1)
-    when (i > eo_max_iter-1) $ do
+    when (i > o_max_iter-1) $ do
       break ()
 
     {- Episode generation -}
@@ -116,41 +130,12 @@ policy_iteraton o@EvalOpts{..} pr (q,p) = do
       Just e -> do
         gs <- backtrack_fv pr <$> pure e
 
-        when (i`mod`1000 == 0) $ do
-          case eo_debug of
-            Nothing -> return ()
-            Just dbg -> do
-              v <- uses ess_q q2v
-              liftIO (dbg (v,p))
-
         {- Policy evaluation -}
         forM_ (Map.toList gs) $ \(s,as) -> do
           forM_ (Map.toList as) $ \(a,g) -> do
             (ess_q . q_map) %= Map.unionWith (Map.unionWith combineAvg) (
                                  Map.singleton s (Map.singleton a (singletonAvg g)))
 
-        {- Error reporting -}
-        case eo_policyMonitor of
-          Nothing -> return ()
-          Just mon -> do
-            err <- do
-              sum <$> do
-                forM (Map.toList gs) $ \(s,as) -> do
-                  q_s <- uses (ess_q . q_map) (Map.toList . (!s))
-                  let (abest, gmax) = maximumBy (compare `on` (current . snd)) q_s
-                  sum <$> do
-                    forM (Map.toList as) $ \(a,g) -> do
-                      pure (abs (current gmax - g))
-
-            -- when (err > 1) $ do
-            --   case eo_debug of
-            --     Nothing -> return ()
-            --     Just dbg -> do
-            --       traceM i
-            --       v <- uses ess_q q2v
-            --       liftIO (dbg (v,p))
-
-            push mon (fromInteger i) err
 
         {- Policy improvement -}
         forM_ (Map.toList gs) $ \(s,as) -> do

@@ -14,10 +14,13 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Types as RL
-import DP as RL
-import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..))
+import DP as RL hiding(eo_debug)
+import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..), Opts(..))
 import qualified MC
+import MC (E_Ext(..))
 import qualified MC.ES
+import MC.ES (ES_Ext(..), ES_State(..))
+
 import Prelude hiding (break)
 
 {-
@@ -237,11 +240,13 @@ example_4_1_mc gw = do
   {- Native MC implementation -}
   t2 <- forkThread $
     let
-      opts = MC.defaultOpts{
-               MC.eo_max_iter = max,
-               MC.eo_learnMonitor = Just MC.Monitor{
-                 mon_target = v_dp,
-                 mon_data = d2
+      opts = MC.defaultEvalOpts{
+               o_max_iter = max,
+               o_ext = E_Ext {
+                 eo_learnMonitor = Just Monitor{
+                   mon_target = v_dp,
+                   mon_data = d2
+                 }
                }
              }
     in do
@@ -273,12 +278,14 @@ example_4_1_iter gw = do
     }
   |] $
     let
-      opts = MC.defaultOpts{
-               MC.eo_max_iter = max,
-               MC.eo_policyMonitor = Just d,
-               MC.eo_debug = Just $ \(v,p) -> do
-                  showStateVal gw v
-                  showGenericPolicy gw p
+      opts = MC.ES.defaultOpts{
+               o_max_iter = max,
+               o_ext = ES_Ext {
+                 eo_debug = \ES_State{..} -> do
+                  when (0 == _ess_iter `mod` 3000) $ do
+                    showStateVal gw (q2v _ess_q)
+                    showGenericPolicy gw _ess_p
+               }
              }
       p = emptyGenericPolicy
       q = emptyQ

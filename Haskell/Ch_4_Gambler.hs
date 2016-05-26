@@ -54,8 +54,8 @@ instance (Fractional num, Ord num) => DP_Problem num Game Gambler Bet where
 
   rl_transitions Game{..} Gambler{..} Bet{..} =
       Set.fromList [
-          (6%10, Gambler (g_pocket - bet_amount))
-        , (4%10, Gambler (g_pocket + bet_amount))]
+          (Gambler (g_pocket - bet_amount), 6%10)
+        , (Gambler (g_pocket + bet_amount), 4%10)]
 
   rl_reward Game{..} _ _ Gambler{..} =
       if g_pocket >= game_win_score then
@@ -75,7 +75,7 @@ example_4_3 thegame =
     showValPolicy :: (StateVal num Gambler, GenericPolicy Gambler Bet) -> String
     showValPolicy (v@StateVal{..}, GenericPolicy{..}) =
       unlines $
-      flip map (Map.toAscList v_map `zip` Map.toAscList gp_actions) $ \((_, vs) , (s@Gambler{..}, set)) ->
+      flip map (Map.toAscList v_map `zip` Map.toAscList _p_map) $ \((_, vs) , (s@Gambler{..}, set)) ->
         let
           actmap = List.sortOn (\(p,a)-> a) $ Set.toList set
 
@@ -85,10 +85,10 @@ example_4_3 thegame =
               d a = fromRational $ toRational $ stateval v s a
             in
             List.intercalate "," $
-            flip map actmap $ \(p,a@Bet{..}) -> show bet_amount ++ " (" ++ (printf "%2.5f" (d a)) ++ ")"
+            flip map actmap $ \(a@Bet{..},p) -> show bet_amount ++ " (" ++ (printf "%2.5f" (d a)) ++ ")"
 
-          (mx, Bet{..})
-            | null actmap = (0, Bet 0)
+          (Bet{..}, mx)
+            | null actmap = (Bet 0, 0)
             | otherwise = head $ actmap
           show_vs = printf "% 2.5f" (fromRational $ toRational vs :: Double)
         in
@@ -102,7 +102,7 @@ example_4_3 thegame =
         eo_max_iter = 1
       , eo_gamma = 1.0
       , eo_etha = 0.00001
-      , eo_debug = const $ return ()
+      -- , eo_debug = const $ return ()
     }
 
     stateval :: (DP_Problem num Game s a) => StateVal num s -> s-> a -> num
