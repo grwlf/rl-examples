@@ -16,6 +16,7 @@ import qualified Data.Set as Set
 import Types as RL
 import DP as RL hiding(eo_debug)
 import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..), Opts(..))
+import MC.Types(Episode(..))
 import qualified MC
 import MC (E_Ext(..))
 import qualified MC.ES
@@ -281,7 +282,7 @@ example_4_1_iter gw = do
       opts = MC.ES.defaultOpts{
                o_max_iter = max,
                o_ext = ES_Ext {
-                 eo_debug = \ES_State{..} -> do
+                 eo_debug = \Episode{..} ES_State{..} -> do
                   when (0 == _ess_iter `mod` 3000) $ do
                     showStateVal gw (q2v _ess_q)
                     showGenericPolicy gw _ess_p

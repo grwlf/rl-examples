@@ -80,14 +80,14 @@ makeLenses ''ES_State
 
 
 data ES_Ext num s a = ES_Ext {
-  eo_debug :: ES_State num s a -> IO ()
+  eo_debug :: Episode s a -> ES_State num s a -> IO ()
 }
 
 type ES_Opts num s a = Opts num (ES_Ext num s a)
 
 defaultOpts :: (Fractional num) => ES_Opts num s a
-defaultOpts = MC.defaultOpts ES_Ext{
-  eo_debug = const (return ())
+defaultOpts = MC.defaultOpts ES_Ext {
+  eo_debug = \_ _ -> return ()
 }
 
 -- | Figure 5.4 pg 116
@@ -107,9 +107,6 @@ policy_iteraton o@Opts{..} pr (q,p) = do
   (view ess_q &&& view ess_p) <$> do
   flip execStateT (ES_State q p 0) $ do
   loop $ do
-
-    {- Debug -}
-    get >>= liftIO . (eo_debug o_ext)
 
     i <- use ess_iter
     ess_iter %= (+1)
@@ -136,7 +133,6 @@ policy_iteraton o@Opts{..} pr (q,p) = do
             (ess_q . q_map) %= Map.unionWith (Map.unionWith combineAvg) (
                                  Map.singleton s (Map.singleton a (singletonAvg g)))
 
-
         {- Policy improvement -}
         forM_ (Map.toList gs) $ \(s,as) -> do
           q_s <- uses (ess_q . q_map) (Map.toList . (!s))
@@ -145,5 +141,9 @@ policy_iteraton o@Opts{..} pr (q,p) = do
               (abest, nmax) = maximumBy (compare `on` (current . snd)) q_s
             in
             Map.insert s (Set.singleton (abest, 1%1))
+
+        {- Finale Debug -}
+        get >>= liftIO . (eo_debug o_ext) e
+
 
 

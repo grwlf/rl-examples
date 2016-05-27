@@ -197,7 +197,7 @@ example t =
     opts = MC.ES.defaultOpts {
              o_max_iter = max
            , o_ext = ES_Ext {
-              eo_debug = \ES_State{..} -> do
+              eo_debug = \Episode{..} ES_State{..} -> do
                 when (0 == _ess_iter `mod` 100) $ do
                   traceM _ess_iter
              }
