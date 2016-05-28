@@ -79,33 +79,33 @@ data ES_State num s a = ES_State {
 makeLenses ''ES_State
 
 
-data ES_Ext num s a = ES_Ext {
-  eo_debug :: Episode s a -> ES_State num s a -> IO ()
+initialState :: Q num s a -> GenericPolicy s a -> ES_State num s a
+initialState q p = ES_State q p 0
+
+data ES_Ext m num s a = ES_Ext {
+  eo_debug :: Episode s a -> ES_State num s a -> m ()
 }
 
-type ES_Opts num s a = Opts num (ES_Ext num s a)
+type ES_Opts m num s a = Opts num (ES_Ext m num s a)
 
-defaultOpts :: (Fractional num) => ES_Opts num s a
+defaultOpts :: (Monad m, Fractional num) => ES_Opts m num s a
 defaultOpts = MC.defaultOpts ES_Ext {
   eo_debug = \_ _ -> return ()
 }
 
 -- | Figure 5.4 pg 116
-policy_iteraton :: (MC_Policy num pr s a (GenericPolicy s a),
-                    MC_Problem_Show num pr s a,
-                    RandomGen g, MonadIO m,
-                    Fractional num,
-                    Ord a, Ord num, Real num)
-  => ES_Opts num s a
-  -> pr num
-  -> (Q num s a, GenericPolicy s a)
+policy_iteraton :: (MC_Problem_Show num pr s a,
+                    MC_Policy num pr s a (GenericPolicy s a),
+                    RandomGen g, MonadIO m)
+  => pr num
+  -> ES_Opts m num s a
+  -> ES_State num s a
   -> g
-  -> m ((Q num s a, GenericPolicy s a), g)
+  -> m (ES_State num s a, g)
 
-policy_iteraton o@Opts{..} pr (q,p) = do
-  runRndT $ do
-  (view ess_q &&& view ess_p) <$> do
-  flip execStateT (ES_State q p 0) $ do
+policy_iteraton pr o@Opts{..} st g = do
+  flip runRndT g $ do
+  flip execStateT st $ do
   loop $ do
 
     i <- use ess_iter
@@ -142,8 +142,6 @@ policy_iteraton o@Opts{..} pr (q,p) = do
             in
             Map.insert s (Set.singleton (abest, 1%1))
 
-        {- Finale Debug -}
-        get >>= liftIO . (eo_debug o_ext) e
-
-
+        {- Final Debug -}
+        get >>= lift . lift . lift . (eo_debug o_ext) e
 

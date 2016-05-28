@@ -33,7 +33,7 @@ import qualified DP as DP
  \____|_|\__,_|___/___/\___||___/
 -}
 
-class (Fractional num, Ord s) => MC_Problem num pr s a | pr -> s , pr -> a where
+class (Fractional num, Ord s, Ord a, Ord num, Real num) => MC_Problem num pr s a | pr -> s , pr -> a where
   mc_state_nonterm :: (RandomGen g) => pr num -> g -> (s,g)
   mc_actions :: pr num -> s -> Set a
   mc_transition :: (RandomGen g) => pr num -> s -> a -> g -> ((s,Bool),g)

@@ -1,9 +1,11 @@
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 module TickTackToe where
 
 import Imports
@@ -141,7 +143,7 @@ bestAction T{..} b p g =
         x -> Just $ flip runRnd g $ Monad.uniform x
 
 
-instance (Fractional num, Ord num) => MC_Problem num T Board Action where
+instance (Fractional num, Real num, Ord num) => MC_Problem num T Board Action where
 
   mc_state_nonterm T{..} = randomBoard t_player
 
@@ -177,7 +179,7 @@ instance (Fractional num, Ord num) => MC_Problem num T Board Action where
        | otherwise -> 0
 
 
-instance (Fractional num, Ord num, Show num) => MC_Problem_Show num T Board Action
+instance (Fractional num, Real num, Ord num, Show num) => MC_Problem_Show num T Board Action
 
 
 t1 = T {
@@ -191,26 +193,29 @@ t1 = T {
 example :: (Show num, Fractional num, Ord num, Real num) => T num -> IO ()
 example t =
   let
-    max = 10000
+
+    o = (MC.defaultOpts $ ES_Ext {
+          eo_debug = \Episode{..} ES_State{..} -> do
+            when (0 == _ess_iter `mod` 100) $ do
+              traceM _ess_iter
+            put True
+        }) {
+          o_max_iter = 10000
+        }
+
+    s = MC.ES.initialState emptyQ emptyGenericPolicy
+
     g = pureMT 33
 
-    opts = MC.ES.defaultOpts {
-             o_max_iter = max
-           , o_ext = ES_Ext {
-              eo_debug = \Episode{..} ES_State{..} -> do
-                when (0 == _ess_iter `mod` 100) $ do
-                  traceM _ess_iter
-             }
-           }
-
-    q = emptyQ
-    p = emptyGenericPolicy
   in do
-  (q',p') <- MC.ES.policy_iteraton opts t (q,p) g
 
-  traceM q'
+  flip evalStateT True $ do
 
-  return ()
+    (s',g') <- MC.ES.policy_iteraton t o s g
+
+    traceM s'
+
+    return ()
 
 
 

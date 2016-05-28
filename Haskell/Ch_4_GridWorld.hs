@@ -139,7 +139,7 @@ example_4_1_dp gw =
 
 {- MC instances -}
 
-instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
+instance (Fractional num, Real num, Ord num) => MC_Problem num GW (Int,Int) Action where
 
   mc_state_nonterm gw@(GW (sx,sy) exits) g =
     let
@@ -175,13 +175,13 @@ instance (Fractional num, Ord num) => MC_Problem num GW (Int,Int) Action where
 
   mc_reward (GW (sx,sy) _) s a s' = -1
 
-instance (Fractional num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
+instance (Fractional num, Real num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
   mc_action pr s p =
     runRand $ uniform [minBound .. maxBound]
 
 
-instance (Fractional num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
-instance (Fractional num, Ord num, Show num) => MC_Problem_Show num GW (Int,Int) Action
+instance (Fractional num, Real num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
+instance (Fractional num, Real num, Ord num, Show num) => MC_Problem_Show num GW (Int,Int) Action
 
 gw :: GW Rational
 gw = GW (4,4) (Set.fromList [(0,0),(3,3)])
@@ -262,8 +262,6 @@ example_4_1_mc gw = do
 example_4_1_iter :: (Show num, Fractional num, Ord num, Real num) => GW num -> IO ()
 example_4_1_iter gw = do
   let max = 200000
-  let g = pureMT 42
-
   d <- newData "mc"
 
   withPlot "plot1" [heredoc|
@@ -278,20 +276,24 @@ example_4_1_iter gw = do
       pause 1
     }
   |] $
+
     let
-      opts = MC.ES.defaultOpts{
-               o_max_iter = max,
-               o_ext = ES_Ext {
+      opts = (MC.defaultOpts $ ES_Ext {
                  eo_debug = \Episode{..} ES_State{..} -> do
                   when (0 == _ess_iter `mod` 3000) $ do
                     showStateVal gw (q2v _ess_q)
                     showGenericPolicy gw _ess_p
-               }
+             }) {
+               o_max_iter = max
              }
-      p = emptyGenericPolicy
-      q = emptyQ
+
+      s = MC.ES.initialState emptyQ emptyGenericPolicy
+
+      g = pureMT 42
+
     in do
-    (q,p) <- MC.ES.policy_iteraton opts gw (q,p) g
+
+    (s',g') <- MC.ES.policy_iteraton gw opts s g
     return ()
 
 
