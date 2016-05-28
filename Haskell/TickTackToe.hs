@@ -200,41 +200,42 @@ t1 = T {
 
 
 example :: (Show num, Fractional num, Ord num, Real num) => T num -> IO ()
-example t@T{..} =
-  let
+example t = do
 
-    o = (MC.defaultOpts $ ES_Ext {
-          eo_debug = \e@Episode{..} ES_State{..} -> do
-            let winner = bo_wins (episodeFinal e)
-            if | winner == t_player -> do
-                _1 %= (+1)
-               | winner == E -> do
-                _2 %= (+1)
-               | winner == (nextPlayer t_player) -> do
-                _3 %= (+1)
-            when (0 == _ess_iter `mod` 100) $ do
-              score <- get
-              traceM (t_player, _ess_iter, score, sizeQ _ess_q)
-        }) {
-          o_max_iter = 10000
-        }
+  flip evalStateT ((0,0,0),t) $ do
 
-    s = MC.ES.initialState (t_vals ! t_player) emptyGenericPolicy
+  loop $ do
 
-    g = pureMT 33
+    t@T{..} <- use _2
 
-  in do
+    _1 %= const (0,0,0)
 
-  flip evalStateT (0,0,0) $ do
+    let
+      g = pureMT 33
+
+      o = (MC.defaultOpts $ ES_Ext {
+            eo_debug = \e@Episode{..} ES_State{..} -> do
+              let winner = bo_wins (episodeFinal e)
+              if | winner == t_player -> do
+                  _1 . _1 %= (+1)
+                 | winner == E -> do
+                  _1 . _2 %= (+1)
+                 | winner == (nextPlayer t_player) -> do
+                  _1 . _3 %= (+1)
+              when (0 == _ess_iter `mod` 100) $ do
+                score <- use _1
+                traceM (t_player, _ess_iter, score, sizeQ _ess_q)
+          }) {
+            o_max_iter = 10000
+          }
+
+      s = MC.ES.initialState (t_vals ! t_player) emptyGenericPolicy
 
     (s',g') <- MC.ES.policy_iteraton t o s g
 
-    lift $ example t{
+    _2 %= const t{
               t_vals = Map.insert t_player (_ess_q s') t_vals
             , t_player = nextPlayer t_player
             }
-
-
-
 
 
