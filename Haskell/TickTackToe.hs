@@ -31,9 +31,8 @@ nextPlayer E = error "nextPlayer: result for E is undefined"
 data Board = Board {
     bo_cells :: Map (Int,Int) Cell
   , bo_wins :: Player
+  , bo_term :: Bool
 } deriving(Show,Ord,Eq)
-
-bo_term Board{..} = bo_wins == X || bo_wins == O
 
 type Action = (Int,Int)
 
@@ -54,19 +53,20 @@ at Board{..} a = fromMaybe E (Map.lookup a bo_cells)
 set a c Board{..} = Board (Map.insert a c bo_cells)
 
 move :: Board -> Player -> Action -> Board
-move Board{..} p a =
-  case bo_wins of
-    E ->
+move b@Board{..} p a =
+  case bo_term of
+    False ->
       let
         bo_cells' = Map.insert a p bo_cells
-        bo_term' = or $ flip map (board_wincheck ! a) $ \r ->
-                      all (==p) (map (\ a -> fromMaybe E $ Map.lookup a bo_cells') r)
+        bo_last' = boardFree b == [a]
+        bo_winner' = or $ flip map (board_wincheck ! a) $ \r {-row-} ->
+                      all (==p) (flip map r $ (\ a -> fromMaybe E $ Map.lookup a bo_cells'))
       in
-      Board bo_cells' (if bo_term' then p else E)
-    _ -> error $ "move called on terminal board"
+      Board bo_cells' (if bo_winner' then p else E) (bo_last' || bo_winner')
+    True -> error $ "move called on terminal board"
 
 emptyBoard :: Board
-emptyBoard = Board Map.empty E
+emptyBoard = Board Map.empty E False
 
 boardFree :: Board -> [Action]
 boardFree Board{..} = board_points \\ (Map.keys bo_cells)
@@ -90,7 +90,7 @@ randomBoard p g =
   let
     check ((_,b,True),g') = (b,g')
     check ((_,_,False),g') =
-      trace "randomBoard diverged" $
+      -- trace "randomBoard diverged" $
       randomBoard p g'
   in do
   check $
@@ -104,7 +104,7 @@ randomBoard p g =
       forM_ [0..nmoves] $ \m -> do
         player <- use _1
         board <- use _2
-        let b's = filter ((==E) . bo_wins) $ map (move board player) (boardFree board)
+        let b's = filter (not . bo_term) $ map (move board player) (boardFree board)
         case null b's of
           True -> do
             _3 %= const False
@@ -181,6 +181,14 @@ instance (Fractional num, Real num, Ord num) => MC_Problem num T Board Action wh
 
 instance (Fractional num, Real num, Ord num, Show num) => MC_Problem_Show num T Board Action
 
+t0 = T {
+    t_vals = Map.fromList [
+        (X,emptyQ),
+        (O,emptyQ)
+      ],
+    t_player = O
+  }
+
 
 t1 = T {
     t_vals = Map.fromList [
@@ -190,15 +198,21 @@ t1 = T {
     t_player = X
   }
 
+
 example :: (Show num, Fractional num, Ord num, Real num) => T num -> IO ()
-example t =
+example t@T{..} =
   let
 
     o = (MC.defaultOpts $ ES_Ext {
-          eo_debug = \Episode{..} ES_State{..} -> do
+          eo_debug = \e@Episode{..} ES_State{..} -> do
+            let winner = bo_wins (episodeFinal e)
+            if | winner == t_player -> do
+                _1 %= (+1)
+               | otherwise -> do
+                _2 %= (+1)
             when (0 == _ess_iter `mod` 100) $ do
-              traceM _ess_iter
-            put True
+              score <- get
+              traceM (_ess_iter,score, sizeQ _ess_q)
         }) {
           o_max_iter = 10000
         }
@@ -209,13 +223,14 @@ example t =
 
   in do
 
-  flip evalStateT True $ do
+  flip evalStateT (0,0) $ do
 
     (s',g') <- MC.ES.policy_iteraton t o s g
 
-    traceM s'
-
-    return ()
+    lift $ example t{
+              t_vals = Map.insert t_player (_ess_q s') t_vals
+            , t_player = nextPlayer t_player
+            }
 
 
 

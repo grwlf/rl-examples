@@ -99,6 +99,8 @@ data Q num s a = Q {
 
 makeLenses ''Q
 
+sizeQ Q{..} = Map.size _q_map
+
 emptyQ :: (Ord s, Ord a) => Q num s a
 emptyQ = Q mempty
 

@@ -92,6 +92,9 @@ newtype Episode s a = Episode {
 episode_forward Episode{..} = reverse ep_list
 episode_backward Episode{..} = ep_list
 
+episodeFinal :: Episode s a -> s
+episodeFinal = view _3 . head . ep_list
+
 
 data Opts num ext = Opts {
     o_gamma :: num
