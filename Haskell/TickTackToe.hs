@@ -208,22 +208,24 @@ example t@T{..} =
             let winner = bo_wins (episodeFinal e)
             if | winner == t_player -> do
                 _1 %= (+1)
-               | otherwise -> do
+               | winner == E -> do
                 _2 %= (+1)
+               | winner == (nextPlayer t_player) -> do
+                _3 %= (+1)
             when (0 == _ess_iter `mod` 100) $ do
               score <- get
-              traceM (_ess_iter,score, sizeQ _ess_q)
+              traceM (t_player, _ess_iter, score, sizeQ _ess_q)
         }) {
           o_max_iter = 10000
         }
 
-    s = MC.ES.initialState emptyQ emptyGenericPolicy
+    s = MC.ES.initialState (t_vals ! t_player) emptyGenericPolicy
 
     g = pureMT 33
 
   in do
 
-  flip evalStateT (0,0) $ do
+  flip evalStateT (0,0,0) $ do
 
     (s',g') <- MC.ES.policy_iteraton t o s g
 
