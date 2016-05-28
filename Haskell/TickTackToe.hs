@@ -22,6 +22,10 @@ import MC.ES
 data Cell = X | O | E
   deriving(Show,Eq,Ord)
 
+showCell X = "X"
+showCell O = "O"
+showCell E = " "
+
 type Player = Cell
 
 nextPlayer X = O
@@ -71,19 +75,6 @@ emptyBoard = Board Map.empty E False
 boardFree :: Board -> [Action]
 boardFree Board{..} = board_points \\ (Map.keys bo_cells)
 
--- isTerminal :: Board -> Cell -> Action -> Bool
--- isTerminal b c a =
---   let
---     b' = set a c b
---   in
---   or $
---     flip map (board_wincheck ! a) $ \r ->
---       all (==c) (map (b'`at`) r)
-
--- Same as boardFree + non-terminal
--- boardFreeSafe :: Player -> Board -> [Action]
--- boardFreeSafe c b = filter (not . (isTerminal b c)) (boardFree b)
-
 -- FIXME: eliminate potantional forever loop
 randomBoard :: (RandomGen g) => Player -> g -> (Board, g)
 randomBoard p g =
@@ -115,13 +106,21 @@ randomBoard p g =
             _2 %= const b'
       break ()
 
-showBoard :: Board -> IO ()
+showBoard :: (MonadIO m) => Board -> m ()
 showBoard b =
+  liftIO $ do
   forM_ [0..board_ny-1] $ \y -> do
     forM_ [0..board_nx-1] $ \x -> do
-      putStr $ show (b `at` (x,y))
+      putStr $ showCell (b `at` (x,y))
     putStrLn ""
 
+
+showEpisode :: (Show a, MonadIO m) => Episode Board a -> m ()
+showEpisode (episode_forward -> es) = do
+  showBoard $ view _1 $ head es
+  forM_ es $ \(b,a,b') -> do
+    liftIO $ putStrLn $ show a
+    showBoard b'
 
 -- | TickTackToe => T
 data T num = T {
@@ -225,6 +224,9 @@ example t = do
               when (0 == _ess_iter `mod` 100) $ do
                 score <- use _1
                 traceM (t_player, _ess_iter, score, sizeQ _ess_q)
+
+              when (0 == _ess_iter `mod` 1000) $ do
+                showEpisode e
           }) {
             o_max_iter = 10000
           }
