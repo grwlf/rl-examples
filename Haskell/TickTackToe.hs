@@ -14,13 +14,14 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Prelude hiding(break)
 
+import Util
 import Monad
 import Types
 import MC.Types as MC
 import MC.ES
 
 data Cell = X | O | E
-  deriving(Show,Eq,Ord)
+  deriving(Show,Read,Eq,Ord)
 
 showCell X = "X"
 showCell O = "O"
@@ -36,7 +37,7 @@ data Board = Board {
     bo_cells :: Map (Int,Int) Cell
   , bo_wins :: Player
   , bo_term :: Bool
-} deriving(Show,Ord,Eq)
+} deriving(Show,Read,Ord,Eq)
 
 type Action = (Int,Int)
 
@@ -126,7 +127,7 @@ showEpisode (episode_forward -> es) = do
 data T num = T {
     t_vals :: Map Player (Q num Board Action)
   , t_player :: Player
-} deriving(Show)
+} deriving(Show,Read)
 
 bestAction :: (Fractional num, Ord num, RandomGen g)
   => T num -> Board -> Player -> g -> Maybe (Action, g)
@@ -175,7 +176,8 @@ instance (Fractional num, Real num, Ord num) => MC_Problem num T Board Action wh
 
   mc_reward T{..} b a b' =
     if | bo_wins b' == t_player -> 1
-       | otherwise -> 0
+       | bo_wins b' == E -> 0
+       | otherwise -> -1
 
 
 instance (Fractional num, Real num, Ord num, Show num) => MC_Problem_Show num T Board Action
@@ -235,9 +237,40 @@ example t = do
 
     (s',g') <- MC.ES.policy_iteraton t o s g
 
-    _2 %= const t{
+    let t' = t{
               t_vals = Map.insert t_player (_ess_q s') t_vals
             , t_player = nextPlayer t_player
             }
+
+    _2 %= const t'
+
+    save "game" "data/TickTackToe" (show t')
+
+
+load :: forall num . (Show num, Read num, Fractional num, Ord num, Real num) => FilePath -> IO (T num)
+load fp = do
+  contents <- readFile fp
+  return (read contents)
+
+simulate :: (Show num, Fractional num, Ord num, Real num) => T num -> IO ()
+simulate t = do
+  flip evalStateT (X, emptyBoard) $ do
+  loop $ do
+    (player,board) <- get
+    let (action,nmax) = maximumBy (compare `on` (current . snd)) $ Map.toList ((_q_map ((t_vals t) ! player)) ! board)
+    let board' = move board player action
+    liftIO $ do
+      showBoard board
+      putStrLn $ "Player is " ++ show player ++ "; Move is " ++ show action
+    when (bo_term board') $ do
+      liftIO $ do
+        showBoard board
+        putStrLn $ show (bo_wins board')
+      break ()
+    _1 %= nextPlayer
+    _2 %= const board'
+
+
+
 
 

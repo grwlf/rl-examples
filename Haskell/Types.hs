@@ -64,7 +64,7 @@ sample n f =
 data Avg num = Avg {
     avg_curr :: num
   , avg_n :: Integer
-  } deriving(Show)
+  } deriving(Show, Read)
 
 initialAvg :: (Fractional num) => Avg num
 initialAvg = Avg 0 0
@@ -95,7 +95,7 @@ testAvg x = do
 
 data Q num s a = Q {
     _q_map :: Map s (Map a (Avg num))
-  } deriving(Show)
+  } deriving(Show,Read)
 
 makeLenses ''Q
 
