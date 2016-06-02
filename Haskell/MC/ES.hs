@@ -115,7 +115,7 @@ policy_iteraton pr o@Opts{..} st g = do
 
     {- Episode generation -}
     s <- roll $ mc_state_nonterm pr
-    a <- RL.uniform $ (\case [] -> trace (show s) [] ; x -> x) $ Set.toList (mc_actions pr s)
+    a <- RL.uniform $ (\case [] -> [] ; x -> x) $ Set.toList (mc_actions pr s)
     p <- use ess_p
     me <- episode o pr s a p
 
