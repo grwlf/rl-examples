@@ -12,18 +12,18 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
-module MC.Types where
+module RL.MC.Types where
 
-import Imports
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Prelude hiding(break)
 
-import Types as RL
-import Monad as RL
-import DP (DP_Problem(..), DP_Policy(..))
-import qualified DP as DP
+import RL.Imports
+import RL.Types as RL
+import Control.Monad.Rnd as RL
+import RL.DP (DP_Problem(..), DP_Policy(..))
+import qualified RL.DP as DP
 
 {-
   ____ _
@@ -123,5 +123,6 @@ defaultOpts defExt = Opts {
   , o_maxEpisodeLen = 100
   , o_ext = defExt
   }
+
 
 

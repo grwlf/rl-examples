@@ -10,15 +10,15 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
-module DP where
+module RL.DP where
 
-import Imports
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Prelude hiding(break)
 
-import Types as RL
+import RL.Imports
+import RL.Types as RL
 
 {-
   ____ _
@@ -278,5 +278,6 @@ policy_iteraton pr p v eo = do
         when (policy_eq pr p p') $ do
           break ()
   return (v',p')
+
 
 

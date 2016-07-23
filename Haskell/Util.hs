@@ -13,4 +13,6 @@ date = getCurrentTime >>= return . toGregorian . utctDay
 save :: (MonadIO m) => String -> FilePath -> String -> m ()
 save nm dir dat = liftIO $ do
   (y,m,d) <- date
-  writeFile (dir </> (printf "%d-%d-%d-%s.txt" y m d nm)) dat
+  let fname = (dir </> (printf "%d-%d-%d-%s.txt" y m d nm))
+  writeFile (fname ++ ".tmp") dat
+  renameFile (fname ++ ".tmp") fname

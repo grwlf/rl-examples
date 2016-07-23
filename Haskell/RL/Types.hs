@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FunctionalDependencies #-}
-module Types where
+module RL.Types where
 
 import Control.Arrow ((&&&),(***))
 import Control.Monad
@@ -21,7 +21,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Random
 
-import Imports
+import RL.Imports
 
 debug :: (MonadIO m) => String -> m ()
 debug = liftIO . putStrLn
@@ -125,4 +125,5 @@ monitorNew :: (MonadIO m) => StateVal num s -> m (Monitor num s)
 monitorNew tgt = liftIO $
   Monitor tgt <$> do
     newData "MC"
+
 

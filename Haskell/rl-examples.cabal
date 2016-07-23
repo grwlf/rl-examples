@@ -48,7 +48,9 @@ library
     filepath,
     mersenne-random-pure64,
     stm,
-    pretty-show
+    pretty-show,
+    time,
+    directory
 
   default-language:
     Haskell2010
@@ -68,9 +70,10 @@ executable rl-examples
     process,
     filepath,
     mersenne-random-pure64,
-    rl-examples,
     stm,
-    pretty-show
+    pretty-show,
+    time,
+    directory
 
   default-language:
     Haskell2010

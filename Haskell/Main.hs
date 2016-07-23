@@ -1,8 +1,8 @@
 module Main where
 
-import Ch_4_GridWorld as RL
+import TickTackToe
 
 
 main :: IO ()
 main = do
-  example_4_1_mc gw_d
+  example t1
