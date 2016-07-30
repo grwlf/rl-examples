@@ -12,22 +12,22 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
-module MC (
-    module MC
-  , module MC.Types
+module RL.MC (
+    module RL.MC
+  , module RL.MC.Types
   ) where
 
-import Imports
+import RL.Imports
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Prelude hiding(break)
 
-import Types as RL
-import DP (DP_Problem(..), DP_Policy(..))
-import qualified DP as DP
+import RL.Types as RL
+import RL.DP (DP_Problem(..), DP_Policy(..))
+import qualified RL.DP as DP
 
-import MC.Types
+import RL.MC.Types
 
 {-
     _    _
@@ -42,14 +42,14 @@ import MC.Types
 -- | Builds an episode which is a list of transitions, terminal transition is near head
 episode :: (RandomGen g , MC_Policy num pr s a p, MonadIO m, Show s, Show a) => pr num -> s -> p -> g -> m (Episode s a,g)
 episode pr s p g = do
-  flip runRandT g $ do
+  flip runRndT g $ do
   Episode . snd <$> do
   flip execStateT (s,[]) $ do
   loop $ do
-    let rnd m = lift $ lift $ liftRandT $ (\g -> return $ m g)
+    -- let rnd m = lift $ lift $ liftRndT $ (\g -> return $ m g)
     s <- gets fst
-    a <- rnd $ mc_action pr s p
-    (s', term) <- rnd $ mc_transition pr s a
+    a <- roll $ mc_action pr s p
+    (s', term) <- roll $ mc_transition pr s a
     modify $ const s' *** ((s,a,s'):)
     when term $ do
       break ()
@@ -98,7 +98,7 @@ defaultEvalOpts = defaultOpts E_Ext {
 policy_eval :: (MC_Policy_Show num pr s a p, RandomGen g, MonadIO m, Real num)
   => EvalOpts num s -> pr num -> p -> g -> m (StateVal num s, g)
 policy_eval Opts{..} pr p = do
-  runRandT $ do
+  runRndT $ do
   StateVal . Map.map current . view es_v <$> do
   flip execStateT initialEvalState $ do
   loop $ do
@@ -107,9 +107,9 @@ policy_eval Opts{..} pr p = do
     when (i > o_max_iter-1) $ do
       break ()
 
-    let rnd = lift . lift . liftRandT
-    ss <- rnd $ return . mc_state_nonterm pr
-    es <- rnd $ episode pr ss p
+    -- let rnd = lift . lift . liftRandT
+    ss <- roll $ mc_state_nonterm pr
+    es <- rollM $ episode pr ss p
     gs <- pure $ backtrack_fv pr es
 
     forM_ (Map.toList gs) $ \(s,g) -> do

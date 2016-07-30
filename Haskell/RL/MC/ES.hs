@@ -13,20 +13,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TemplateHaskell #-}
-module MC.ES where
+module RL.MC.ES where
 
 import Imports
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Prelude hiding(break)
+import Control.Monad.Rnd
 
-import Types as RL
-import Monad as RL
-import DP (DP_Problem(..), DP_Policy(..))
-import qualified DP as DP
+import RL.Types as RL
+import RL.DP (DP_Problem(..), DP_Policy(..))
+import qualified RL.DP as DP
 
-import MC.Types as MC
+import RL.MC.Types as MC
 
 -- | Builds an episode which is a list of transitions, terminal transition goes
 -- to the head of Episode list
@@ -115,7 +115,7 @@ policy_iteraton pr o@Opts{..} st g = do
 
     {- Episode generation -}
     s <- roll $ mc_state_nonterm pr
-    a <- RL.uniform $ (\case [] -> [] ; x -> x) $ Set.toList (mc_actions pr s)
+    a <- uniform $ (\case [] -> [] ; x -> x) $ Set.toList (mc_actions pr s)
     p <- use ess_p
     me <- episode o pr s a p
 

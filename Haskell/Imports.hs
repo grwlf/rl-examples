@@ -7,7 +7,7 @@ module Imports (
   , module Control.Monad
   , module Control.Monad.Trans
   , module Control.Monad.State.Strict
-  , module Control.Monad.Random
+  -- , module Control.Monad.Random
   , module Control.Break
   , module Control.Lens
   , module Data.Bits
@@ -39,7 +39,7 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.State.Strict
-import Control.Monad.Random
+-- import Control.Monad.Random
 import Control.Break
 import Control.Lens (makeLenses, (%=), view, use, uses, _1, _2, _3, _4, _5, _6)
 import Data.Bits

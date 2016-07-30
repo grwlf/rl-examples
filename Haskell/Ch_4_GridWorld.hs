@@ -8,19 +8,19 @@
 
 module Ch_4_GridWorld where
 
-import Imports
+import RL.Imports
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import Types as RL
-import DP as RL hiding(eo_debug)
-import MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..), Opts(..))
-import MC.Types(Episode(..))
-import qualified MC
-import MC (E_Ext(..))
-import qualified MC.ES
-import MC.ES (ES_Ext(..), ES_State(..))
+import RL.Types as RL
+import RL.DP as RL hiding(eo_debug)
+import RL.MC(MC_Problem(..), MC_Policy(..), MC_Policy_Show(..), MC_Problem_Show(..), Opts(..))
+import RL.MC.Types(Episode(..))
+import qualified RL.MC
+import RL.MC (E_Ext(..))
+import qualified RL.MC.ES
+import RL.MC.ES (ES_Ext(..), ES_State(..))
 
 import Prelude hiding (break)
 
@@ -143,9 +143,9 @@ instance (Fractional num, Real num, Ord num) => MC_Problem num GW (Int,Int) Acti
 
   mc_state_nonterm gw@(GW (sx,sy) exits) g =
     let
-      (p,g') = flip runRand g $ do
-            x <- getRandomR (0,sx-1)
-            y <- getRandomR (0,sy-1)
+      (p,g') = flip runRnd g $ do
+            x <- getRndR (0,sx-1)
+            y <- getRndR (0,sy-1)
             return (x,y)
     in
       -- FIXME: try to replace recursion with direct selection
@@ -177,7 +177,7 @@ instance (Fractional num, Real num, Ord num) => MC_Problem num GW (Int,Int) Acti
 
 instance (Fractional num, Real num, Ord num) => MC_Policy num GW (Int,Int) Action GWRandomPolicy where
   mc_action pr s p =
-    runRand $ uniform [minBound .. maxBound]
+    runRnd $ uniform [minBound .. maxBound]
 
 
 instance (Fractional num, Real num, Ord num, Show num) => MC_Policy_Show num GW (Int,Int) Action GWRandomPolicy
@@ -204,7 +204,6 @@ example_4_1_mc gw = do
   let max = 200000
   let g = pureMT 42
 
-  d1 <- newData "mc1"
   d2 <- newData "mc2"
 
   withPlot "plot1" [heredoc|
@@ -215,33 +214,17 @@ example_4_1_mc gw = do
     done = 0
     bind all 'd' 'done = 1'
     while(!done) {
-      plot ${dat d1} using 1:2 with lines, ${dat d2} using 1:2 with lines
+      plot ${dat d2} using 1:2 with lines
       pause 1
     }
   |] $ do
 
   v_dp <- example_4_1_dp gw
 
-  {- DP-to-MC Adapter -}
-  {-
-  t1 <- forkThread $
-    let
-      opts = MC.defaultOpts{
-               MC.eo_max_iter = max,
-               MC.eo_learnMonitor = Just MC.Monitor{
-                 mon_target = v_dp,
-                 mon_data = d1
-               }
-             }
-    in do
-    (v,_) <- MC.policy_eval opts (MC gw) GWRandomPolicy g
-    showStateVal gw v
-  -}
-
   {- Native MC implementation -}
   t2 <- forkThread $
     let
-      opts = MC.defaultEvalOpts{
+      opts = RL.MC.defaultEvalOpts{
                o_max_iter = max,
                o_ext = E_Ext {
                  eo_learnMonitor = Just Monitor{
@@ -251,7 +234,7 @@ example_4_1_mc gw = do
                }
              }
     in do
-    (v,_) <- MC.policy_eval opts gw GWRandomPolicy g
+    (v,_) <- RL.MC.policy_eval opts gw GWRandomPolicy g
     showStateVal gw v
 
   mapM_ takeMVar [t2]
@@ -278,7 +261,7 @@ example_4_1_iter gw = do
   |] $
 
     let
-      opts = (MC.defaultOpts $ ES_Ext {
+      opts = (RL.MC.defaultOpts $ ES_Ext {
                  eo_debug = \Episode{..} ES_State{..} -> do
                   when (0 == _ess_iter `mod` 3000) $ do
                     showStateVal gw (q2v _ess_q)
@@ -287,13 +270,13 @@ example_4_1_iter gw = do
                o_max_iter = max
              }
 
-      s = MC.ES.initialState emptyQ emptyGenericPolicy
+      s = RL.MC.ES.initialState emptyQ emptyGenericPolicy
 
       g = pureMT 42
 
     in do
 
-    (s',g') <- MC.ES.policy_iteraton gw opts s g
+    (s',g') <- RL.MC.ES.policy_iteraton gw opts s g
     return ()
 
 

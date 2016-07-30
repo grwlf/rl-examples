@@ -50,33 +50,34 @@ $(makeLenses ''RL.Q.Q)
 emptyQ :: Q s a
 emptyQ = Q HashMap.empty
 
-mergeQ :: (Eq s, Eq a, Hashable s, Hashable a) => Q s a -> Q s a -> Q s a
-mergeQ (view q_map -> q1) (view q_map -> q2) =
-  Q $ HashMap.unionWith (HashMap.unionWith (\a b -> (a + b) / 2)) q1 q2
-
-class Q_Problem m pr s sr a | pr -> s , s -> sr, pr -> a, pr -> m where
-  q_state :: (MonadRnd g m) => pr -> m s
-  -- ^ Extract non-terminal state for the problem @pr@
-  -- q_action :: (MonadRnd g m) => pr -> s -> Q_Policy -> Q sr a -> m a
-  -- ^ Takes a problem, a state, a policy and a Q(sr,a) , returns the Epsilon-greedy action
-  q_transition :: (MonadRnd g m) => pr -> s -> a -> m s
-  q_reward :: pr -> s -> a -> s -> Q_Number
-  q_is_terminal :: pr -> s -> Bool
-  q_state_reduce :: pr -> s -> sr
-
-
--- instance (Q_Problem m pr s sr a) => Q_Problem (StateT s m) pr s sr a where
---   q_state = lift . q_state
---   q_transition pr s a = lift $ q_transition pr s a
---   q_reward pr s a s = q_reward pr s a s
---   q_is_terminal :: pr -> s -> Bool
---   q_state_reduce :: pr -> s -> sr
+q2v :: (Eq s, Hashable s, Eq a, Hashable a) => Q s a -> s -> Q_Number
+q2v q s = foldl' max 0 (q^.q_map.(zidx mempty s))
 
 zidx def name = Lens.lens get set where
   get m = case HashMap.lookup name m of
             Just x -> x
             Nothing -> def
   set = (\hs mhv -> HashMap.insert name mhv hs)
+
+{-
+ - Most likely incorrect
+mergeQ :: (Eq s, Eq a, Hashable s, Hashable a) => Q s a -> Q s a -> Q s a
+mergeQ (view q_map -> q1) (view q_map -> q2) =
+  Q $ HashMap.unionWith (HashMap.unionWith (\a b -> (a + b) / 2)) q1 q2
+-}
+
+class (Monad m, Eq sr, Hashable sr, Eq a, Hashable a, Bounded a, Enum a, Show a) =>
+
+        Q_Problem m pr s sr a | pr -> s , s -> sr, pr -> a, pr -> m where
+
+  q_state :: (MonadRnd g m) => pr -> m s
+  -- ^ Extract non-terminal state for the problem @pr@
+  q_transition :: (MonadRnd g m) => pr -> s -> a -> m s
+  q_reward :: pr -> s -> a -> s -> Q_Number
+  q_is_terminal :: pr -> s -> Bool
+  q_state_reduce :: pr -> s -> sr
+  q_monitor :: pr -> s -> a -> s -> Q sr a -> m ()
+  q_monitor pr s a s' q = return ()
 
 q_action :: (Eq sr, Hashable sr,
                   Enum a, Eq a, Hashable a, Bounded a,
@@ -111,10 +112,10 @@ q_action pr s p q =
 
   join $ Rnd.fromList [
     swap (toRational $ 1.0-(p^.p_eps), do
-      traceM ("best", (1.0-(p^.p_eps)))
+      -- traceM ("best", (1.0-(p^.p_eps)))
       return abest),
     swap (toRational $ p^.p_eps, do
-      traceM "random"
+      -- traceM "random"
       Rnd.uniform arest)
     ]
 
@@ -141,9 +142,7 @@ defaultOpts = Q_Opts {
 
 $(makeLenses ''Q_Opts)
 
-qlearn :: (Eq sr, Hashable sr,
-           Eq a, Hashable a, Bounded a, Enum a, Show a,
-           MonadRnd g m, Q_Problem m pr s sr a)
+qlearn :: (MonadRnd g m, Q_Problem m pr s sr a)
        => pr -> Q_Opts -> Q sr a -> m (Q sr a)
 qlearn pr o q0 =
   let
@@ -161,9 +160,13 @@ qlearn pr o q0 =
   flip execStateT (Q_State q0 s0) $ do
   loop $ do
     s <- use q_s
-    a <- use q_qt >>= \q -> lift $ lift (q_action pr s p q)
-    -- traceM a
+    q <- use q_qt
+    a <- lift $ lift (q_action pr s p q)
+
     s' <- lift $ lift $ q_transition pr s a
+
+    lift $ lift $ q_monitor pr s a s' q
+
     when (q_is_terminal pr s') $ do
       break ()
 
@@ -177,9 +180,7 @@ qlearn pr o q0 =
     q_s %= const s'
 
 
-qexec :: (Eq sr, Hashable sr,
-           Eq a, Hashable a, Bounded a, Enum a, Show a,
-           MonadRnd g m, Q_Problem m pr s sr a)
+qexec :: (MonadRnd g m, Q_Problem m pr s sr a)
        => pr -> Q_Opts -> Q sr a -> m ()
 qexec pr o q0 =
   let

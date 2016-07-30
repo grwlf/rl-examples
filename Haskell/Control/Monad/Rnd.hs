@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Monad where
+module Control.Monad.Rnd where
 
 import Control.Monad.Identity
 import Imports
@@ -70,5 +70,5 @@ fromList xs = do
 
 -- | Sample a value from a uniform distribution of a list of elements.
 uniform :: (MonadRnd g m) => [a] -> m a
-uniform = Monad.fromList . fmap (flip (,) 1)
+uniform = Control.Monad.Rnd.fromList . fmap (flip (,) 1)
 
